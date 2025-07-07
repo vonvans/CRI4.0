@@ -1,0 +1,43 @@
+version: "3"
+
+services:
+  collector:
+    platform: linux/x86_64
+    build: ./collector/server
+    image: icr/collector
+    ports:
+      - "1337:1337"
+    profiles: [collector]
+
+  collector-db:
+    build: ./collector/db
+    image: icr/collector-db
+    ports:
+      - "7331:7331"
+    profiles: [collector]
+
+  kathara-base:
+    build: ./kathara-base
+    image: icr/kathara-base
+    profiles: [kathara]
+
+  mitm-arp-spoofing:
+    build: ./mitm/arp-spoofing
+    image: icr/mitm-arp-spoofing
+    cap_add:
+      - NET_ADMIN
+    profiles: [kali]
+
+  dos-icmp-flood:
+    build: ./dos/icmp-flood
+    image: icr/dos-icmp-flood
+    cap_add:
+      - NET_ADMIN
+    profiles: [kali]
+
+  Reconnaissance-arp-scanning:
+    build: ./Reconnaissance/arp-scanning
+    image: icr/Reconnaissance-arp-scanning
+    cap_add:
+      - NET_ADMIN
+    profiles: [kali]
