@@ -22,7 +22,7 @@
 3. **Build Docker containers (from the `containers` directory):**
     ```sh
     cd containers
-    docker compose --profile collector --profile kathara build
+    sudo docker compose --profile collector --profile kathara build
     ```
 
 4. **Start the application (in the `containers` directory):**
