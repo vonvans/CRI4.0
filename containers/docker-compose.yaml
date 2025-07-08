@@ -37,7 +37,7 @@ services:
 
   Reconnaissance-arp-scanning:
     build: ./Reconnaissance/arp-scanning
-    image: icr/Reconnaissance-arp-scanning
+    image: icr/reconnaissance-arp-scanning
     cap_add:
       - NET_ADMIN
     profiles: [kali]
