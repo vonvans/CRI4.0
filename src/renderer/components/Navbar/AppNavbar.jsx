@@ -75,7 +75,7 @@ export function AppNavbar({darkMode,setDarkMode}) {
           <NavbarItem isActive={activeItem === 'Images'}>
               <Link
                 onClick={() => setActiveItem('images')}
-                color={activeItem == "images" ? "primary" : "foreground"} href="/images">
+                color={activeItem == "images" ? "primary" : "foreground"} href="/settings">
                   <FaCog size={24} className='mt-1' />
               </Link>
           </NavbarItem>
