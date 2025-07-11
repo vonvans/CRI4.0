@@ -1,14 +1,31 @@
 # CRI4.0
-This is the official Github repo of the CRI4.0 project, an industrial Cyber Range based on Docker containerisation.
 
-The file was uploaded as a Zip archive due to exceeding file size.
+## Prerequisites
 
-Tutorial for use:
+- [Docker](https://www.docker.com/) installed and available in your system's `PATH`
+- [Node.js v18.20.8](https://nodejs.org/en/download/) installed
+- [Docker Compose Plugin](https://docs.docker.com/compose/install/) installed
 
-1) npm install
+## Installation Instructions
 
-2) cd containers
+1. **Clone the repository:**
+    ```sh
+    git clone https://github.com/vonvans/CRI4.0
+    cd CRI4.0
+    ```
 
-3) docker compose --profile collector --profile kathara build
+2. **Install Node.js dependencies (ensure you are using Node.js v18.20.8):**
+    ```sh
+    npm install
+    ```
 
-4) npm start
+3. **Build Docker containers (from the `containers` directory):**
+    ```sh
+    cd containers
+    sudo docker compose --profile collector --profile kathara build
+    ```
+
+4. **Start the application (in the `containers` directory):**
+    ```sh
+    npm start
+    ```
