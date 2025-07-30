@@ -31,7 +31,7 @@ export function MachineInfo({id, machine, machines, setMachines}) {
                         value={machine.name}
                         onValueChange={(value) => handleChange(value, {
                             ...machine,
-                            name: value
+                            name: value.toLocaleLowerCase()
                         })}
                     />
                 </div>

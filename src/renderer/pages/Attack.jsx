@@ -38,13 +38,19 @@ function Attack() {
     };
 
     return (
-        <div className="min-h-[calc(100vh-4rem)] grid">
+        <div className="min-h-[calc(100vh-4rem)] grid pb-24">
             {stepStatus && (
                 <div className="grid place-items-center">
                     <Stepper machines={machines} onComplete={(val) => setStepStatus(val)} />
                 </div>
             ) || (
                 <div className="p-4">
+                    <Card className="mb-2 border-l-2 border-warning bg-warning/10 px-4 py-1 w-full">
+                        <CardBody className="p-1 text-warning text-xs">
+                            ⚠️ Be sure to check user permissions to build Docker images. If the build button is not working, try running:
+                             <code className="font-mono">sudo usermod -aG docker $USER && newgrp docker</code>
+                        </CardBody>
+                    </Card>
                     <div className="h-full">
                         <Tabs isVertical classNames={{tabList: "h-full", tabWrapper: "h-full bg-red-700"}} aria-label="Category" className="px-1 col-span-1">
                             <Tab title="Reconnaissance" className="grid gap-2 w-full">

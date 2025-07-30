@@ -33,6 +33,7 @@ function Reconnaissance({attacker, attacks, isLoading, machines, setMachines, ha
                     setAttackLoaded(true)
                     return {
                         ...m,
+                        name: val,
                         targets: targets,
                         attackLoaded: true,
                         attackImage: val,

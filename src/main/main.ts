@@ -61,6 +61,49 @@ ipcMain.handle('docker-build', async (event, arg) => {
   });
 });
 
+ipcMain.handle("simulate-attack", async (event, { container, command }) => {
+  const timestamp = new Date().toLocaleString();
+  console.log(`[${timestamp}] simulate-attack request`);
+  console.log(`Image name received: ${container}`);
+  console.log(`Command to execute: ${command}`);
+
+  // Step 1: trova il container attivo che deriva dall'immagine specificata
+  const containerName = await new Promise<string>((resolve, reject) => {
+    exec(
+      `docker ps --filter ancestor=${container} --format "{{.Names}}"`,
+      (err, stdout, stderr) => {
+        if (err) {
+          console.error("❌ Error looking for container:", stderr);
+          return reject("Failed to find container for image: " + container);
+        }
+
+        const name = stdout.trim().split("\n")[0];
+        if (!name) {
+          console.warn("⚠️ No running container found for image:", container);
+          return reject("No running container found for image: " + container);
+        }
+
+        console.log(`✅ Using container: ${name}`);
+        resolve(name);
+      }
+    );
+  });
+
+  // Step 2: esegui il comando nel container trovato
+  return new Promise((resolve, reject) => {
+    exec(`docker exec ${containerName} ${command}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error("❌ Command execution error:", stderr || error.message);
+        return reject(stderr || error.message);
+      }
+
+      console.log("✅ Command output:\n" + stdout);
+      resolve(stdout.trim());
+    });
+  });
+});
+
+
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();

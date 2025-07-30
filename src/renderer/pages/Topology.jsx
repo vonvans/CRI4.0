@@ -14,12 +14,76 @@ import { useContext } from "react";
 import { NotificationContext } from "../contexts/NotificationContext";
 
 function Topology() {
+
+    const [attackInProgress, setAttackInProgress] = useState(false);
+    const [showTimer, setShowTimer] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+  if (attackInProgress && progress >= 100) {
+    const timeout = setTimeout(() => {
+      setAttackInProgress(false);
+      setShowTimer(false);
+      setProgress(0);
+    }, 1000); // attesa finale opzionale
+
+    return () => clearTimeout(timeout);
+  }
+}, [progress, attackInProgress]);
+
+    
+
     const [machines, setMachines] = useState(() => {
         const savedMachines = localStorage.getItem("machines");
         return savedMachines ? JSON.parse(savedMachines) : [];
     });
 
     const { attackLoaded } = useContext(NotificationContext);
+
+    const simulateAttack = async () => {
+  const attacker = machines.find((m) => m.type === "attacker");
+  console.log("simulateAttack triggered");
+  console.log("attacker:", attacker);
+
+  if (!attacker) {
+    console.warn("⚠️ No attacker machine found.");
+    return;
+  }
+
+  if (!attacker.attackLoaded) {
+    console.warn("⚠️ Attack not loaded on attacker.");
+    return;
+  }
+
+  // Se arrivi qui, IPC verrà chiamato
+  console.log("✅ Launching attack:", attacker.attackCommand);
+
+  setAttackInProgress(true);
+  setShowTimer(true);
+  setProgress(0);
+
+  try {
+    await window.electron.ipcRenderer.invoke("simulate-attack", {
+      container: attacker.name,
+      command: attacker.attackCommand,
+    });
+  } catch (e) {
+    console.error("Attack error", e);
+  }
+
+  let seconds = 0;
+  const interval = setInterval(() => {
+    seconds += 1;
+    setProgress((seconds / 4) * 100); // progress in %
+    if (seconds >= 4) {
+      clearInterval(interval);
+      setTimeout(() => {
+        setShowTimer(false);
+        setAttackInProgress(false);
+      }, 1000); // attesa finale per chiusura pulita
+    }
+  }, 1000);
+};
 
     return(
         <div className="grid min-h-[calc(100vh-4rem)] gap-2 p-4">
@@ -37,8 +101,26 @@ function Topology() {
                 </div>
             </div>
             <div className="grid items-start">
-                <Button isDisabled={!attackLoaded} className={!attackLoaded ? "bg-success/50" : "bg-success"} >Simulate Attack</Button>
+                <Button isDisabled={attackInProgress || !attackLoaded} className={attackInProgress ? "bg-success/50" : "bg-success"} onClick={simulateAttack}>{attackInProgress ? "Attack launched!" : "Simulate Attack"}</Button>
             </div>
+            {showTimer && (
+  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+    <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-2">
+      <p className="text-sm font-bold uppercase tracking-wide">
+         Stand by, Launching attack
+      </p>
+      <p className="text-xs">Deployment in progress...</p>
+
+      {/* Progress bar */}
+      <div className="w-full bg-warning/20 rounded-full h-2 overflow-hidden">
+        <div
+          className="bg-warning h-2 transition-all duration-1000 ease-linear"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  </div>
+)}
                 {/* <div className="">
                     <Accordion variant="splitted">
                         <AccordionItem key="1" aria-label="lab-info" title="Controls">
