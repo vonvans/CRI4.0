@@ -29,3 +29,5 @@
     ```sh
     npm start
     ```
+
+NOTA X LORENZO: per far funzionare gli attacchi serve effettuare nelle cartella del progetto "npm install adm-zip node-fetch"
