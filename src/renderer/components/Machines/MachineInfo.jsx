@@ -4,14 +4,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable prettier/prettier */
 import { useState, useEffect } from "react";
-import {RadioGroup, Radio} from "@nextui-org/radio";
-import {Input} from "@nextui-org/input";
+import { RadioGroup, Radio } from "@nextui-org/radio";
+import { Input } from "@nextui-org/input";
+import { Switch } from "@nextui-org/switch";
 
-export function MachineInfo({id, machine, machines, setMachines}) {
-    function handleChange(value, data){
+export function MachineInfo({ id, machine, machines, setMachines }) {
+    function handleChange(value, data) {
         setMachines(() => (
             machines.map(m => {
-                if (m.id === machine.id){
+                if (m.id === machine.id) {
                     return data
                 } else {
                     return m
@@ -34,6 +35,18 @@ export function MachineInfo({id, machine, machines, setMachines}) {
                             name: value.toLocaleLowerCase()
                         })}
                     />
+                    <div className="mt-2">
+                        <Switch
+                            isSelected={!!machine.bridged}
+                            onValueChange={(val) =>
+                                setMachines(ms => ms.map(m =>
+                                    m.id === machine.id ? { ...m, bridged: val } : m
+                                ))
+                            }
+                        >
+                            Online (bridged)
+                        </Switch>
+                    </div>
                 </div>
                 <div className="row-span-7">
                     <RadioGroup
@@ -53,8 +66,8 @@ export function MachineInfo({id, machine, machines, setMachines}) {
                         {machines.filter(m => m.type === "controller" && m.id !== machine.id).length === 1 && (
                             <Radio value="switch">Open vSwitch</Radio>
                         ) || (
-                            <Radio value="controller">OpenFlow Ryu Controller</Radio>
-                        )
+                                <Radio value="controller">OpenFlow Ryu Controller</Radio>
+                            )
                         }
                         <Radio value="other">Other</Radio>
                     </RadioGroup>
