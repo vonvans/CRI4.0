@@ -19,6 +19,19 @@ function Topology() {
     const [showTimer, setShowTimer] = useState(false);
     const [progress, setProgress] = useState(0);
 
+   const [simulationRun, setSimulationRun] = useState(false);
+const [stopSimulation, setStopSimulation] = useState(false);
+
+const [showSimulationBanner, setShowSimulationBanner] = useState(false);
+
+
+
+  const [labInfo, setLabInfo] = useState(() => {
+    const savedLab = localStorage.getItem("labInfo");
+    return savedLab ? JSON.parse(savedLab) : { name: "default-lab" };
+  });
+    
+
     useEffect(() => {
   if (attackInProgress && progress >= 100) {
     const timeout = setTimeout(() => {
@@ -37,6 +50,9 @@ function Topology() {
         const savedMachines = localStorage.getItem("machines");
         return savedMachines ? JSON.parse(savedMachines) : [];
     });
+
+    
+    
 
     const { attackLoaded } = useContext(NotificationContext);
 
@@ -100,9 +116,56 @@ function Topology() {
                     )}
                 </div>
             </div>
-            <div className="grid items-start">
-                <Button isDisabled={attackInProgress || !attackLoaded} className={attackInProgress ? "bg-success/50" : "bg-success"} onClick={simulateAttack}>{attackInProgress ? "Attack launched!" : "Simulate Attack"}</Button>
-            </div>
+            <div className="grid gap-2 items-start">
+  {/* Run Simulation */}
+  <Button 
+    isDisabled={simulationRun} 
+    className="bg-success text-white" 
+    onClick={async () => {
+  setShowSimulationBanner(true);
+
+  try {
+    await window.electron.ipcRenderer.invoke("run-simulation", {
+      machines,
+      labInfo,
+    });
+  } catch (e) {
+    console.error("Run simulation error:", e);
+  }
+
+  setTimeout(() => {
+    setShowSimulationBanner(false);
+    setSimulationRun(true);
+    setStopSimulation(false);
+  }, 2000);
+}}
+  >
+    Run Simulation
+  </Button>
+
+  {/* Simulate Attack */}
+  <Button 
+    isDisabled={attackInProgress || !attackLoaded || !simulationRun || stopSimulation} 
+    className={attackInProgress ? "bg-danger/50 text-white" : "bg-danger text-white"} 
+    onClick={simulateAttack}
+  >
+    {attackInProgress ? "Attack launched!" : "Simulate Attack"}
+  </Button>
+
+  {/* Stop Simulation */}
+  {simulationRun && !stopSimulation && (
+    <Button
+      size="sm"
+      className="bg-warning text-white"
+      onClick={() => {
+  setStopSimulation(true);
+  setSimulationRun(false); 
+}}
+    >
+      Stop Simulation
+    </Button>
+  )}
+</div>
             {showTimer && (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
     <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-2">
@@ -116,6 +179,24 @@ function Topology() {
         <div
           className="bg-warning h-2 transition-all duration-1000 ease-linear"
           style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  </div>
+)}
+{showSimulationBanner && (
+  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+    <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-2">
+      <p className="text-sm font-bold uppercase tracking-wide">
+        Deploying infrastructure
+      </p>
+      <p className="text-xs">Please wait...</p>
+
+      {/* Progress bar opzionale */}
+      <div className="w-full bg-warning/20 rounded-full h-2 overflow-hidden">
+        <div
+          className="bg-warning h-2 animate-pulse"
+          style={{ width: `100%` }}
         />
       </div>
     </div>

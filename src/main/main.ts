@@ -18,6 +18,10 @@ import log from 'electron-log';
 import { exec } from 'child_process';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import { generateZip } from "../renderer/components/Download4Run"; // percorso relativo corretto
+import os from 'os';
+import fs from 'fs';
+import AdmZip from 'adm-zip';
 
 
 class AppUpdater {
@@ -98,6 +102,43 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
       }
 
       console.log("✅ Command output:\n" + stdout);
+      resolve(stdout.trim());
+    });
+  });
+});
+
+ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
+  const LAB_NAME = labInfo?.name || 'default-lab';
+  const LABS_DIR = path.join(os.homedir(), 'kathara-labs');
+  const ZIP_PATH = path.join(LABS_DIR, `${LAB_NAME}.zip`);
+  const LAB_PATH = path.join(LABS_DIR, LAB_NAME);
+
+  // 1. Crea dir di destinazione
+  if (!fs.existsSync(LABS_DIR)) {
+    fs.mkdirSync(LABS_DIR, { recursive: true });
+  }
+
+  // 2. Genera ZIP con i dati passati
+  console.log("📦 Generating ZIP...");
+  await generateZip(machines, labInfo, ZIP_PATH);
+
+  // 3. Estrai ZIP
+  console.log("📂 Extracting ZIP...");
+  const zip = new AdmZip(ZIP_PATH);
+  zip.extractAllTo(LABS_DIR, true);
+
+  // 4. Avvia kathara
+  console.log("🚀 Launching Kathara...");
+  return new Promise((resolve, reject) => {
+    console.log("📂 Lanciando kathara in:", LAB_PATH);
+console.log("📄 File presenti:", fs.readdirSync(LABS_DIR));
+    exec(`kathara lstart --noterminals`, { cwd: LABS_DIR }, (error, stdout, stderr) => {
+      if (error) {
+        console.error("❌ Failed to start:", stderr || error.message);
+        return reject(stderr || error.message);
+      }
+
+      console.log("✅ Lab started.");
       resolve(stdout.trim());
     });
   });
