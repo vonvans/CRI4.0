@@ -87,6 +87,8 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     console.error("Attack error", e);
   }
 
+
+
   let seconds = 0;
   const interval = setInterval(() => {
     seconds += 1;
@@ -99,6 +101,17 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
       }, 1000); // attesa finale per chiusura pulita
     }
   }, 1000);
+};
+
+  const handleStopSimulation = async () => {
+  setStopSimulation(true);
+  try {
+    await window.electron.ipcRenderer.invoke("stop-simulation");
+  } catch (e) {
+    console.error("Stop simulation error:", e);
+  } finally {
+    setSimulationRun(false);
+  }
 };
 
     return(
@@ -157,10 +170,7 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     <Button
       size="sm"
       className="bg-warning text-white"
-      onClick={() => {
-  setStopSimulation(true);
-  setSimulationRun(false); 
-}}
+      onClick={handleStopSimulation}
     >
       Stop Simulation
     </Button>

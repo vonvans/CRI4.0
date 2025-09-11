@@ -21,8 +21,19 @@ import { resolveHtmlPath } from './util';
 import { generateZip } from "../renderer/components/Download4Run"; // percorso relativo corretto
 import os from 'os';
 import fs from 'fs';
+import { promises as fsp } from "fs";
 import AdmZip from 'adm-zip';
+import { generateZipNode } from '../shared/make-node';
 
+// In cima al file main (scope modulo)
+type CurrentLab = {
+  name: string;
+  labsDir: string;
+  labPath: string;
+  zipPath: string;
+};
+
+let CURRENT_LAB: CurrentLab | null = null;
 
 class AppUpdater {
   constructor() {
@@ -33,6 +44,20 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+
+async function emptyKatharaLabs(labsDir: string) {
+  try {
+    const entries = await fsp.readdir(labsDir);
+    await Promise.allSettled(
+      entries.map((entry) =>
+        fsp.rm(path.join(labsDir, entry), { recursive: true, force: true })
+      )
+    );
+    console.log("🧹 Contenuto rimosso da:", labsDir);
+  } catch (err) {
+    console.error("❌ Errore durante lo svuotamento:", err);
+  }
+}
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -108,6 +133,9 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
 });
 
 ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
+  console.log('machines?', Array.isArray(machines), machines?.length);
+  console.log('labInfo?', labInfo);
+  
   const LAB_NAME = labInfo?.name || 'default-lab';
   const LABS_DIR = path.join(os.homedir(), 'kathara-labs');
   const ZIP_PATH = path.join(LABS_DIR, `${LAB_NAME}.zip`);
@@ -120,12 +148,15 @@ ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
 
   // 2. Genera ZIP con i dati passati
   console.log("📦 Generating ZIP...");
-  await generateZip(machines, labInfo, ZIP_PATH);
+  await generateZipNode(machines, labInfo, ZIP_PATH);
 
   // 3. Estrai ZIP
   console.log("📂 Extracting ZIP...");
   const zip = new AdmZip(ZIP_PATH);
   zip.extractAllTo(LABS_DIR, true);
+
+// subito dopo aver definito LAB_NAME / LABS_DIR / ZIP_PATH / LAB_PATH
+CURRENT_LAB = { name: LAB_NAME, labsDir: LABS_DIR, labPath: LAB_PATH, zipPath: ZIP_PATH };
 
   // 4. Avvia kathara
   console.log("🚀 Launching Kathara...");
@@ -143,6 +174,39 @@ console.log("📄 File presenti:", fs.readdirSync(LABS_DIR));
     });
   });
 });
+
+
+
+ipcMain.handle('stop-simulation', async () => {
+
+  if (!CURRENT_LAB) {
+    throw new Error("Nessuna simulazione attiva in questa sessione.");
+  }
+
+  const { name, labsDir, labPath } = CURRENT_LAB;
+
+  // usa -n <labname> per essere espliciti
+  const safeName = String(name).replace(/"/g, '\\"');
+  //const cmd = `kathara lclean -n "${safeName}"`;
+ const cmd = `kathara lclean -d "${labsDir}"`;
+
+  console.log("🛑 Stopping lab with:", cmd);
+
+  return await new Promise((resolve, reject) => {
+    exec(cmd, async (error, stdout, stderr) => {
+      if (error) {
+        console.error("❌ lclean failed:", stderr || error.message);
+        return reject(stderr || error.message);
+      }
+
+      await emptyKatharaLabs(labsDir);
+      
+      console.log("✅ lclean done.");
+      resolve(stdout.trim());
+    });
+  });
+});
+
 
 
 if (process.env.NODE_ENV === 'production') {
