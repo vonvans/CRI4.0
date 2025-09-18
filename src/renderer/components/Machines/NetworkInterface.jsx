@@ -109,7 +109,12 @@ export function NetworkInterface({machine, machines, setMachines}) {
                             interfaces: {
                                 ...m.interfaces,
                                 free: e.target.value
+                            },
+                            scripts: {
+                                ...(m.scripts ?? {}),   // backward-compat se manca
+                                startup: e.target.value,
                             }
+
                         }
                     } else {
                         return m
@@ -232,7 +237,8 @@ export function NetworkInterface({machine, machines, setMachines}) {
                     variant="flat"
                     label={`Directly in ${machine.name}.startup`}
                     placeholder=" "
-                    value={machine.interfaces.free || ""}
+                    value={machine.scripts?.startup || ""}  // fallback sicuro
+                    //value={machine.interfaces.free || ""}
                     onChange={handleScriptChange}
                 />
             </div>

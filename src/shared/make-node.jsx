@@ -11,9 +11,29 @@ function makeStartupFiles(netkit, lab) {
   lab.file["collector.startup"] = "";
   lab.file["collectordb.startup"] = "";
   for (let machine of netkit) {
-    if (machine.name && machine.name !== "") {
-      lab.file[machine.name + ".startup"] = "";
-    }
+    //if (machine.name && machine.name !== "") {
+      //lab.file[machine.name + ".startup"] = "";
+    //}
+     const rawName = machine.type === "attacker" ? "attacker" : machine.name;
+    const machineName = String(rawName).replace(/[^\w.-]/g, "_");
+
+    // prendi lo script dal nuovo campo, fallback al vecchio
+    const userScript =
+      (machine.scripts && typeof machine.scripts.startup === "string"
+        ? machine.scripts.startup
+        : "") ||
+      (machine.interfaces && typeof machine.interfaces.free === "string"
+        ? machine.interfaces.free
+        : "");
+
+    // header sicuro + script utente (trim) + newline finale
+    const header = `#!/bin/bash
+set -euo pipefail
+
+`;
+    const body = (userScript || "").trim();
+    lab.file[`${machineName}.startup`] = header + body + "\n";
+
   }
 }
 

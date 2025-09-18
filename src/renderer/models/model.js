@@ -56,6 +56,11 @@ export const backboneModel = {
     files: [],
     fileCounter: 0,
   },
+
+ scripts: {
+    startup: "",   // qui metteremo le righe di scripting
+  },
+
   ryu: {
     stp: false,
     rest: true,
