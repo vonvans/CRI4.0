@@ -40,4 +40,12 @@ services:
     image: icr/reconnaissance-arp-scanning
     cap_add:
       - NET_ADMIN
-    profiles: [kali]
+    profiles:
+      - kali
+  modbustcp-flood:
+    build: ./dos/modbustcp-flood
+    image: icr/dos-modbustcp-flood
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali

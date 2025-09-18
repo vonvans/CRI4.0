@@ -224,5 +224,13 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+  },
+  {
+    name: "modbustcp-flood",
+    displayName: "Modbus-TCP flood",
+    category: "dos",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
   }
 ]
