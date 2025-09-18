@@ -75,6 +75,9 @@ function makeLabConfFile(netkit, lab) {
 	lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
 
 	for (let machine of netkit) {
+		if (machine.bridged) {
+			lab.file["lab.conf"] += `${machine.name}[bridged]=true\n`;
+		}
 		for (let machineInterface of machine.interfaces.if) {
 			if (machineInterface.eth.number == 0 && (machine.type == "controller" || machine.type == "switch")) {
 				machineInterface.eth.domain = "SDNRESERVED";
