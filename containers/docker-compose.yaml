@@ -42,7 +42,7 @@ services:
       - NET_ADMIN
     profiles:
       - kali
-  modbustcp-flood:
+  dos-modbustcp-flood:
     build: ./dos/modbustcp-flood
     image: icr/dos-modbustcp-flood
     cap_add:
