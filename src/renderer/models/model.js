@@ -14,6 +14,7 @@ export const backboneModel = {
   attackLoaded: false,
   attackImage: "",
   attackCommand: "",
+  bridged: false,
   targets: [],
   routingSoftware: "frr",
   interfaces: {
@@ -220,6 +221,14 @@ export const attacksModel = [
     name: "modbus-read",
     displayName: "Modbus Read",
     category: "sniffing",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+  },
+  {
+    name: "modbustcp-flood",
+    displayName: "Modbus-TCP flood",
+    category: "dos",
     attackLoaded: false,
     image: "",
     isImage: false,

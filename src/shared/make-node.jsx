@@ -93,6 +93,7 @@ function makeLabConfFile(netkit, lab) {
     const lastIndex = machine.interfaces.if[machine.interfaces.if.length - 1]?.eth?.number ?? -1;
     //lab.file["lab.conf"] += `${machine.name}[${lastIndex + 1}]=_collector\n`;
     lab.file["lab.conf"] += `${machineName}[${lastIndex + 1}]=_collector\n`;
+    lab.file["lab.conf"] += `${machineName}[bridged]=true\n`;
 
     // image per tipo
     if (machine.type == "router") {
