@@ -32,14 +32,16 @@ set -euo pipefail
 
 `;
     const body = (userScript || "").trim();
-    lab.file[`${machineName}.startup`] = header + body + "\n";
+    lab.file[`${machineName}.startup`] = header + ipSetup + body + "\n";
 
   }
 }*/
 
 function makeStartupFiles(netkit, lab) {
   lab.file["collector.startup"] = "";
+  lab.file["collector.startup"] = "";
   lab.file["collectordb.startup"] = "";
+  let ipCounter = 1;
   for (let machine of netkit) {
     const rawName = machine.type === "attacker" ? "attacker" : machine.name;
     const machineName = String(rawName || "node").replace(/[^\w.-]/g, "_");
@@ -53,11 +55,14 @@ function makeStartupFiles(netkit, lab) {
         ? machine.interfaces.free
         : "");
 
-    // header sicuro + script utente (trim)
-    const header = `#!/bin/bash
-set -euo pipefail
-
-`;
+    // header sicuro
+    let header = "#!/bin/bash\nset -euo pipefail\n\n";
+    let ipSetup = "";
+    // Collector escluso, assegna IP incrementale su eth1
+    if (machineName !== "collector") {
+      ipSetup = `ip addr add 20.0.0.${ipCounter}/24 dev eth1\nip link set eth1 up\n`;
+      ipCounter++;
+    }
     const body = (userScript || "").trim();
 
     // Per tutte le macchine (tranne collector) aggiungiamo la configurazione di rete
@@ -99,7 +104,7 @@ ip link set eth0 up
     }
 
     // compone il file startup: header + body + netcfg
-    lab.file[`${machineName}.startup`] = header + (body ? body + "\n\n" : "") + netcfg;
+    lab.file[`${machineName}.startup`] = header + ipSetup + (body ? body + "\n\n" : "") + netcfg;
   }
 }
 
@@ -134,6 +139,18 @@ function makeLabConfFile(netkit, lab) {
   //lab.file["lab.conf"] += "collector[image]=icr/collector\n";
   //lab.file["lab.conf"] += "collectordb[0]=_collector\n";
   //lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
+
+
+  lab.file["lab.conf"] += "collector[bridged]=true\n";
+  lab.file["lab.conf"] += 'collector[port]="3100:3100"\n';
+  lab.file["lab.conf"] += 'collector[0]="_collector"\n';
+  lab.file["lab.conf"] += "collector[image]=\"icr/collector\"\n";
+  lab.file["collector.startup"] = `#!/bin/sh
+  ip addr add 20.0.0.254/24 dev eth0
+  ip link set eth0 up
+  echo "nameserver 8.8.8.8" > /etc/resolv.conf
+  loki -config.file=/etc/loki/config.yml
+  `;
 
   for (let machine of netkit) {
    // Nome “forzato” e sanificato per evitare slash ecc.
