@@ -26,7 +26,80 @@ function Reconnaissance({attacker, attacks, isLoading, machines, setMachines, ha
 
     console.log(attacker.attackImage)
 
-    const toggleAttack = (val) => {
+    // aggiungi sopra il componente (o in util separato)
+const ipRegex = /^(?:25[0-5]|2[0-4]\d|1?\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/;
+
+function extractTargetIPs(targets = [], attackerDomain) {
+  // targets: array di oggetti macchina (come li usi), attackerDomain: es. "lan1"
+  // ritorna array di IP (no cidr, senza duplicati)
+  const ips = [];
+
+  targets.forEach((t) => {
+    if (!t || !t.interfaces || !Array.isArray(t.interfaces.if)) return;
+
+    // per ciascuna interfaccia del target, prendi l'ip se la domain corrisponde
+    t.interfaces.if.forEach((iface) => {
+      try {
+        if (iface && iface.eth && iface.eth.domain === attackerDomain && iface.ip) {
+          // split per rimuovere il /cidr se presente
+          const ipOnly = String(iface.ip).split('/')[0].trim();
+          if (ipRegex.test(ipOnly)) {
+            ips.push(ipOnly);
+          }
+        }
+      } catch (e) {
+        // ignore malformed entries
+      }
+    });
+  });
+
+  // dedup
+  return Array.from(new Set(ips));
+}
+
+const toggleAttack = (val) => {
+  setMachines(machines.map((m) => {
+    if (m.type === "attacker") {
+      if (!attacker.attackLoaded) {
+        // estrai gli IP puliti e unici
+        const attackerDomain = attacker.interfaces?.if?.[0]?.eth?.domain;
+        const cleanIps = extractTargetIPs(targets, attackerDomain);
+
+        // costruisci l'array di argomenti (più sicuro)
+        const attackArgs = ['sh', '/usr/local/bin/script.sh', ...cleanIps];
+
+        // versione stringa leggibile (opzionale) per UI/log
+        const attackCommandStr = attackArgs.join(' ');
+
+        setAttackLoaded(true);
+        return {
+          ...m,
+          name: val,
+          targets: targets,
+          attackLoaded: true,
+          attackImage: val,
+          // salva ENTRAMBI: args + str
+          attackCommandArgs: attackArgs,
+          attackCommand: attackCommandStr,
+        };
+      } else {
+        setAttackLoaded(false);
+        return {
+          ...m,
+          targets: [],
+          attackLoaded: false,
+          attackImage: "",
+          attackCommand: "",
+          attackCommandArgs: [],
+        };
+      }
+    } else {
+      return m;
+    }
+  }));
+};
+
+    /*const toggleAttack = (val) => {
         setMachines(machines.map((m) => {
             if (m.type === "attacker"){
                 if (!attacker.attackLoaded){
@@ -37,7 +110,7 @@ function Reconnaissance({attacker, attacks, isLoading, machines, setMachines, ha
                         targets: targets,
                         attackLoaded: true,
                         attackImage: val,
-                        attackCommand: "sh ./script.sh " + targets.map((t) => t.interfaces.if.filter((i) =>
+                        attackCommand: "sh /usr/local/bin/script.sh " + targets.map((t) => t.interfaces.if.filter((i) =>
                             i.eth.domain === attacker.interfaces.if[0].eth.domain
                         ).map((i) => i.ip.split("/")[0])).join(" ")
                     }
@@ -55,7 +128,7 @@ function Reconnaissance({attacker, attacks, isLoading, machines, setMachines, ha
                 return m
             }
         }))
-    }
+    }*/
 
     return (
         <div className="flex flex-col auto-rows-max gap-2">

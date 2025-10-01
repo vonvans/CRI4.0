@@ -7,7 +7,7 @@ function makeMachineFolders(netkit, lab) {
   for (let machine of netkit) lab.folders.push(machine.name);
 }
 
-function makeStartupFiles(netkit, lab) {
+/*function makeStartupFiles(netkit, lab) {
   lab.file["collector.startup"] = "";
   lab.file["collectordb.startup"] = "";
   for (let machine of netkit) {
@@ -34,6 +34,72 @@ set -euo pipefail
     const body = (userScript || "").trim();
     lab.file[`${machineName}.startup`] = header + body + "\n";
 
+  }
+}*/
+
+function makeStartupFiles(netkit, lab) {
+  lab.file["collector.startup"] = "";
+  lab.file["collectordb.startup"] = "";
+  for (let machine of netkit) {
+    const rawName = machine.type === "attacker" ? "attacker" : machine.name;
+    const machineName = String(rawName || "node").replace(/[^\w.-]/g, "_");
+
+    // prendi lo script dal nuovo campo, fallback al vecchio
+    const userScript =
+      (machine.scripts && typeof machine.scripts.startup === "string"
+        ? machine.scripts.startup
+        : "") ||
+      (machine.interfaces && typeof machine.interfaces.free === "string"
+        ? machine.interfaces.free
+        : "");
+
+    // header sicuro + script utente (trim)
+    const header = `#!/bin/bash
+set -euo pipefail
+
+`;
+    const body = (userScript || "").trim();
+
+    // Per tutte le macchine (tranne collector) aggiungiamo la configurazione di rete
+    // usando l'IP ricavato da machine.interfaces.if[...] (prima interfaccia con ip non vuoto).
+    // Se non troviamo IP, usiamo un fallback.
+    let netcfg = "";
+    if (machine.type !== "collector") {
+      // ricava ip dalla prima interfaccia definita con ip
+      let ipRaw = "";
+      try {
+        if (machine.interfaces && Array.isArray(machine.interfaces.if)) {
+          const ipEntry = machine.interfaces.if.find((iface) => {
+            return iface && typeof iface.ip === "string" && iface.ip.trim() !== "";
+          });
+          if (ipEntry) {
+            ipRaw = String(ipEntry.ip).trim();
+          }
+        }
+      } catch (e) {
+        // ignore e fallback più sotto
+      }
+
+      // fallback statico se non troviamo nulla
+      const finalIp = ipRaw && ipRaw.length > 0 ? ipRaw : "192.168.10.100/24";
+
+      netcfg = `
+# Configurazione rete aggiunta automaticamente (saltata per collector)
+# Usato per macchina: ${machineName}
+# Indirizzo IP selezionato: ${finalIp}
+ip addr add "${finalIp}" dev eth0
+ip link set eth0 up
+
+`;
+    } else {
+      // (opzionale) se vuoi un commento esplicito per i collector
+      netcfg = `
+# Collector: configurazione IP automatica SKIPPED for ${machineName}
+`;
+    }
+
+    // compone il file startup: header + body + netcfg
+    lab.file[`${machineName}.startup`] = header + (body ? body + "\n\n" : "") + netcfg;
   }
 }
 

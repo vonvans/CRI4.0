@@ -27,34 +27,46 @@ function Injection({attacker, attacks, isLoading, machines, setMachines, handleR
     console.log(attacker.attackImage)
 
     const toggleAttack = (val) => {
-        setMachines(machines.map((m) => {
-            if (m.type === "attacker"){
-                if (!attacker.attackLoaded){
-                    setAttackLoaded(true)
-                    return {
-                        ...m,
-                        targets: targets,
-                        attackLoaded: true,
-                        attackImage: val,
-                        attackCommand: "sh ./script.sh " + targets.map((t) => t.interfaces.if.filter((i) =>
-                            i.eth.domain === attacker.interfaces.if[0].eth.domain
-                        ).map((i) => i.ip.split("/")[0])).join(" ")
-                    }
-                } else {
-                    setAttackLoaded(false)
-                    return {
-                        ...m,
-                        targets: [],
-                        attackLoaded: false,
-                        attackImage: "",
-                        attackCommand: ""
-                    }
-                }
-            } else {
-                return m
-            }
-        }))
+  setMachines(machines.map((m) => {
+    if (m.type === "attacker") {
+      if (!attacker.attackLoaded) {
+        // estrai gli IP puliti e unici
+        const attackerDomain = attacker.interfaces?.if?.[0]?.eth?.domain;
+        const cleanIps = extractTargetIPs(targets, attackerDomain);
+
+        // costruisci l'array di argomenti (più sicuro)
+        const attackArgs = ['sh', '/usr/local/bin/script.sh', ...cleanIps];
+
+        // versione stringa leggibile (opzionale) per UI/log
+        const attackCommandStr = attackArgs.join(' ');
+
+        setAttackLoaded(true);
+        return {
+          ...m,
+          name: val,
+          targets: targets,
+          attackLoaded: true,
+          attackImage: val,
+          // salva ENTRAMBI: args + str
+          attackCommandArgs: attackArgs,
+          attackCommand: attackCommandStr,
+        };
+      } else {
+        setAttackLoaded(false);
+        return {
+          ...m,
+          targets: [],
+          attackLoaded: false,
+          attackImage: "",
+          attackCommand: "",
+          attackCommandArgs: [],
+        };
+      }
+    } else {
+      return m;
     }
+  }));
+};
 
     return (
         <div className="flex flex-col auto-rows-max gap-2">

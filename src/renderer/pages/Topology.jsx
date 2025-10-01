@@ -13,14 +13,21 @@ import TopologyGraph from "../components/TopologyGraph";
 import { useContext } from "react";
 import { NotificationContext } from "../contexts/NotificationContext";
 
+
 function Topology() {
 
     const [attackInProgress, setAttackInProgress] = useState(false);
     const [showTimer, setShowTimer] = useState(false);
     const [progress, setProgress] = useState(0);
 
-   const [simulationRun, setSimulationRun] = useState(false);
-const [stopSimulation, setStopSimulation] = useState(false);
+   const [simulationRun, setSimulationRun] = useState(() => {
+  try { return JSON.parse(localStorage.getItem('simulationRun') || 'false'); }
+  catch { return false; }
+});
+const [stopSimulation, setStopSimulation] = useState(() => {
+  try { return JSON.parse(localStorage.getItem('stopSimulation') || 'false'); }
+  catch { return false; }
+});
 
 const [showSimulationBanner, setShowSimulationBanner] = useState(false);
 
@@ -30,6 +37,17 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     const savedLab = localStorage.getItem("labInfo");
     return savedLab ? JSON.parse(savedLab) : { name: "default-lab" };
   });
+
+
+  useEffect(() => {
+  localStorage.setItem('simulationRun', JSON.stringify(simulationRun));
+}, [simulationRun]);
+
+useEffect(() => {
+  localStorage.setItem('stopSimulation', JSON.stringify(stopSimulation));
+}, [stopSimulation]);
+
+
     
 
     useEffect(() => {
@@ -56,7 +74,68 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
 
     const { attackLoaded } = useContext(NotificationContext);
 
+
     const simulateAttack = async () => {
+  const attacker = machines.find((m) => m.type === "attacker");
+  console.log("simulateAttack triggered");
+  console.log("attacker:", attacker);
+
+  if (!attacker) {
+    console.warn("⚠️ No attacker machine found.");
+    return;
+  }
+
+  if (!attacker.attackLoaded) {
+    console.warn("⚠️ Attack not loaded on attacker.");
+    return;
+  }
+
+  // Preferiamo usare attackCommandArgs (array). Se non esiste, facciamo fallback
+  const commandArgs =
+    Array.isArray(attacker.attackCommandArgs) && attacker.attackCommandArgs.length > 0
+      ? attacker.attackCommandArgs
+      : (typeof attacker.attackCommand === 'string'
+         ? attacker.attackCommand.trim().split(/\s+/)
+         : []);
+
+  if (!Array.isArray(commandArgs) || commandArgs.length === 0) {
+    console.warn("⚠️ Nessun comando valido da inviare al main.");
+    return;
+  }
+
+  console.log("✅ Launching attack args:", commandArgs);
+
+  setAttackInProgress(true);
+  setShowTimer(true);
+  setProgress(0);
+
+  // start timer/progress (comportamento originale: 4 secondi)
+  let seconds = 0;
+  const interval = setInterval(() => {
+    seconds += 1;
+    setProgress((seconds / 4) * 100); // progress in %
+    if (seconds >= 4) {
+      clearInterval(interval);
+      setTimeout(() => {
+        setShowTimer(false);
+        setAttackInProgress(false);
+      }, 1000); // attesa finale per chiusura pulita
+    }
+  }, 1000);
+
+  try {
+    await window.electron.ipcRenderer.invoke("simulate-attack", {
+      container: attacker.name,
+      command: commandArgs, // INVIO come ARRAY di argomenti
+    });
+  } catch (e) {
+    console.error("Attack error", e);
+    // opzionale: mostra notifica / alert a utente
+  }
+  // nota: lo stato (attackInProgress/showTimer) viene chiuso dal timer sopra
+};
+
+   /* const simulateAttack = async () => {
   const attacker = machines.find((m) => m.type === "attacker");
   console.log("simulateAttack triggered");
   console.log("attacker:", attacker);
@@ -101,7 +180,7 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
       }, 1000); // attesa finale per chiusura pulita
     }
   }, 1000);
-};
+};*/
 
   const handleStopSimulation = async () => {
   setStopSimulation(true);
@@ -113,6 +192,8 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     setSimulationRun(false);
   }
 };
+
+
 
     return(
         <div className="grid min-h-[calc(100vh-4rem)] gap-2 p-4">

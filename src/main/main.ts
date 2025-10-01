@@ -25,6 +25,7 @@ import { promises as fsp } from "fs";
 import AdmZip from 'adm-zip';
 import { generateZipNode } from '../shared/make-node';
 
+
 // In cima al file main (scope modulo)
 type CurrentLab = {
   name: string;
@@ -90,7 +91,7 @@ ipcMain.handle('docker-build', async (event, arg) => {
   });
 });
 
-ipcMain.handle("simulate-attack", async (event, { container, command }) => {
+/*ipcMain.handle("simulate-attack", async (event, { container, command }) => {
   const timestamp = new Date().toLocaleString();
   console.log(`[${timestamp}] simulate-attack request`);
   console.log(`Image name received: ${container}`);
@@ -130,7 +131,111 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
       resolve(stdout.trim());
     });
   });
+});*/
+
+
+import { spawn } from 'child_process'; // metti questa importazione vicino a `import { exec } from 'child_process';`
+
+// ...
+
+ipcMain.handle("simulate-attack", async (event, { container, command }) => {
+  const timestamp = new Date().toLocaleString();
+  console.log(`[${timestamp}] simulate-attack request`);
+  console.log(`Image name received: ${container}`);
+  console.log('Raw command payload (main):', command);
+
+  // ------- Normalizzazione comando -------
+  // Accettiamo:
+  // - array di token: ['sh','/usr/local/bin/script.sh','192.168.10.1']
+  // - stringa con spazi: "sh /usr/local/bin/script.sh 192.168.10.1"
+  // - stringa con virgole: "sh,/usr/local/bin/script.sh,192.168.10.1"
+  // - array con singolo elemento che contiene virgole: ["sh,/usr/..."]
+  let args: string[] = [];
+
+  try {
+    if (Array.isArray(command)) {
+      args = command.flatMap((el) =>
+        String(el).split(/[,\s]+/).filter(Boolean)
+      );
+    } else if (typeof command === 'string') {
+      args = command.trim().split(/[,\s]+/).filter(Boolean);
+    } else {
+      throw new Error('Invalid command type');
+    }
+
+    // rimuovi virgolette esterne residue e whitespace
+    args = args.map(a => a.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+
+    // de-dup mantenendo ordine
+    const seen = new Set<string>();
+    args = args.filter(x => (seen.has(x) ? false : (seen.add(x), true)));
+
+    if (args.length === 0) {
+      throw new Error('No valid command arguments after normalization.');
+    }
+
+    console.log('Normalized args for docker exec:', args);
+  } catch (err) {
+    console.error('❌ Failed to normalize command:', err);
+    throw err;
+  }
+
+  // ------- Trova container corrispondente all'immagine -------
+  const containerName = await new Promise<string>((resolve, reject) => {
+    exec(
+      `docker ps --filter ancestor=${container} --format "{{.Names}}"`,
+      (err, stdout, stderr) => {
+        if (err) {
+          console.error("❌ Error looking for container:", stderr || err.message);
+          return reject("Failed to find container for image: " + container);
+        }
+
+        const name = stdout.trim().split("\n")[0];
+        if (!name) {
+          console.warn("⚠️ No running container found for image:", container);
+          return reject("No running container found for image: " + container);
+        }
+
+        console.log(`✅ Using container: ${name}`);
+        resolve(name);
+      }
+    );
+  });
+
+  // ------- Esegui con spawn (arg array sicuro) -------
+  return new Promise((resolve, reject) => {
+    const dockerArgs = ['exec', containerName, ...args];
+    console.log('Spawning process:', 'docker', dockerArgs.join(' '));
+
+    const proc = spawn('docker', dockerArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        console.error('❌ Command failed (code ' + code + '):', stderr || `exit ${code}`);
+        return reject(stderr || `exit ${code}`);
+      }
+      console.log('✅ Command output:', stdout.trim());
+      resolve(stdout.trim());
+    });
+
+    proc.on('error', (err) => {
+      console.error('❌ Spawn error:', err);
+      reject(err.message || String(err));
+    });
+  });
 });
+
 
 ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
   console.log('machines?', Array.isArray(machines), machines?.length);
@@ -205,6 +310,93 @@ ipcMain.handle('stop-simulation', async () => {
       resolve(stdout.trim());
     });
   });
+});
+
+
+
+// --- helper per eseguire comandi in modo sicuro (no shell injection) ---
+function runCmd(cmd: string, args: string[], opts: {cwd?: string, timeoutMs?: number} = {}) {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd || process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let out = '';
+    let err = '';
+    let timedOut = false;
+
+    const timer = opts.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          try { child.kill('SIGKILL'); } catch {}
+        }, opts.timeoutMs)
+      : null;
+
+    child.stdout.on('data', d => (out += d.toString()));
+    child.stderr.on('data', d => (err += d.toString()));
+
+    child.on('close', code => {
+      if (timer) clearTimeout(timer);
+      if (timedOut) return reject(new Error('command timeout'));
+      if (code === 0) return resolve(out.trim());
+      reject(new Error(err || `exit ${code}`));
+    });
+
+    child.on('error', e => {
+      if (timer) clearTimeout(timer);
+      reject(e);
+    });
+  });
+}
+
+
+
+// --- shutdown orchestrato ---
+let IS_SHUTTING_DOWN = false;
+
+async function gracefulShutdown() {
+  if (IS_SHUTTING_DOWN) return;
+  IS_SHUTTING_DOWN = true;
+
+  try {
+    // 🔽 qui metti il comando che vuoi eseguire alla chiusura
+    // Esempio: pulizia Kathara SE c'è un lab attivo
+    if (CURRENT_LAB) {
+      console.log('🧹 On-exit: kathara lclean …', CURRENT_LAB.labsDir);
+      await runCmd('kathara', ['lclean', '-d', CURRENT_LAB.labsDir], { timeoutMs: 20_000 });
+      await emptyKatharaLabs(CURRENT_LAB.labsDir);
+    }
+
+    // Oppure, un qualsiasi comando di shell:
+    // await runCmd('sh', ['-lc', 'echo "bye" && date'], { timeoutMs: 5000 });
+
+  } catch (e) {
+    console.error('❌ On-exit command failed:', e);
+  } finally {
+    // esci subito senza rientrare in before-quit (eviti loop)
+    app.exit(0);
+  }
+}
+
+// --- intercetta Ctrl+C e terminazioni ---
+process.on('SIGINT', () => {
+  console.log('📴 Caught SIGINT (Ctrl+C)');
+  gracefulShutdown();
+});
+
+process.on('SIGTERM', () => {
+  console.log('📴 Caught SIGTERM');
+  gracefulShutdown();
+});
+
+// quando Electron vuole chiudere (click X o sistema)
+app.on('before-quit', (event) => {
+  // preveniamo l’uscita immediata, facciamo cleanup e poi usciamo noi
+  if (!IS_SHUTTING_DOWN) {
+    event.preventDefault();
+    gracefulShutdown();
+  }
 });
 
 
