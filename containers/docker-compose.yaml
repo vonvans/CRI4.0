@@ -2,8 +2,7 @@ version: "3"
 
 services:
   collector:
-    platform: linux/x86_64
-    build: ./collector/server
+    build: ./collector
     image: icr/collector
     ports:
       - "1337:1337"
