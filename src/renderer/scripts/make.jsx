@@ -102,7 +102,7 @@ function makeLabConfFile(netkit, lab) {
 			if (machine.attackLoaded && machine.attackImage != ""){
 				lab.file["lab.conf"] += machine.name + "[image]=" + machine.attackImage;
 			} else {
-				lab.file["lab.conf"] += machine.name + "[image]=kalilinux/kali-rolling";
+				lab.file["lab.conf"] += machine.name + "[image]=kalilinux/kali-rolling@sha256:eb500810d9d44236e975291205bfd45e9e19b7f63859e3a72ba30ea548ddb1df";
 			}
 		}
 		lab.file["lab.conf"] += "\n";
