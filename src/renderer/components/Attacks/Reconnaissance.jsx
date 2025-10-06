@@ -57,7 +57,13 @@ function extractTargetIPs(targets = [], attackerDomain) {
   return Array.from(new Set(ips));
 }
 
-const toggleAttack = (val) => {
+// helper: trova definizione attacco
+function getAttackDefinition(attackName) {
+  if (!Array.isArray(attacks)) return null;
+  return attacks.find(a => a.name === attackName || a.image === attackName || a.displayName === attackName) || null;
+}
+
+/*const toggleAttack = (val) => {
   setMachines(machines.map((m) => {
     if (m.type === "attacker") {
       if (!attacker.attackLoaded) {
@@ -66,7 +72,27 @@ const toggleAttack = (val) => {
         const cleanIps = extractTargetIPs(targets, attackerDomain);
 
         // costruisci l'array di argomenti (più sicuro)
-        const attackArgs = ['sh', '/usr/local/bin/script.sh', ...cleanIps];
+        const attackDef = getAttackDefinition(val);
+
+        const scriptPath = attackDef?.script || "/usr/local/bin/script.sh";
+        const entrypoint = attackDef?.entrypoint || null;
+
+
+        // costruisci l'array dei comandi in modo sicuro
+        let attackArgs;
+        if (entrypoint) {
+          // es: ["python3", "/usr/local/bin/icmp_scan_scapy.py", "10.0.0.5", "10.0.0.6"]
+          attackArgs = [entrypoint, scriptPath, ...cleanIps];
+        } else {
+          // se lo script è eseguibile con shebang o è uno shell script
+          // useremo "sh" come default per safety se ha estensione .sh
+          if (scriptPath.endsWith(".sh")) {
+            attackArgs = ["sh", scriptPath, ...cleanIps];
+          } else {
+            attackArgs = [scriptPath, ...cleanIps];
+          }
+        }
+        
 
         // versione stringa leggibile (opzionale) per UI/log
         const attackCommandStr = attackArgs.join(' ');
@@ -97,6 +123,186 @@ const toggleAttack = (val) => {
       return m;
     }
   }));
+};
+*/
+
+/*const toggleAttack = (val) => {
+  setMachines((prevMachines) => {
+    // trova attacker corrente (quello collegato all'immagine selezionata)
+    // oppure identifica l'attacker "principale" con type === "attacker"
+    // se hai più attacker potresti aggiustare la logica per match su id/name
+    const attackerIndex = prevMachines.findIndex(m => m.type === "attacker");
+
+    // build nuovo array machines resettando tutti gli attacker
+    const machinesReset = prevMachines.map((m) => {
+      if (m.type === "attacker") {
+        return {
+          ...m,
+          targets: [],
+          attackLoaded: false,
+          attackImage: "",
+          attackCommand: "",
+          attackCommandArgs: [],
+          name: m.name || "",
+        };
+      }
+      return m;
+    });
+
+    // se non trovi attacker, ritorna stato resettato
+    if (attackerIndex === -1) return machinesReset;
+
+    // se ora vogliamo caricare l'attacco (val non vuoto) -> costruisci args e imposta solo quel machine
+    const attackDef = getAttackDefinition ? getAttackDefinition(val) : null; // se hai helper
+    // fallbacks
+    const scriptPath = attackDef?.script || "/usr/local/bin/script.sh";
+    const entrypoint = attackDef?.entrypoint || null;
+
+    // estrai attacker (prima versione) dai prevMachines (non dai machinesReset per leggere il dominio)
+    const currAttacker = prevMachines[attackerIndex];
+    const attackerDomain = currAttacker?.interfaces?.if?.[0]?.eth?.domain;
+    const cleanIps = extractTargetIPs(targets, attackerDomain);
+
+    // se l'attacco è già caricato (vuoi toggle unload) -> lo rimuoviamo (comportamento toggle)
+    // ma dato che abbiamo resettato tutto sopra, possiamo interpretare val === "" come unload
+    if (currAttacker.attackLoaded) {
+      // già resettato in machinesReset, ritorna quello
+      return machinesReset;
+    }
+
+    // costruiamo args (sicuro)
+    let attackArgs;
+    if (entrypoint) {
+      attackArgs = [entrypoint, scriptPath, ...cleanIps];
+    } else if (scriptPath.endsWith(".py")) {
+      attackArgs = ["python3", scriptPath, ...cleanIps];
+    } else if (scriptPath.endsWith(".sh")) {
+      attackArgs = ["sh", scriptPath, ...cleanIps];
+    } else {
+      attackArgs = [scriptPath, ...cleanIps];
+    }
+
+    const attackCommandStr = attackArgs.join(" ");
+
+    // aggiorna solo il machine attackerIndex con le info dell'attacco caricato
+    machinesReset[attackerIndex] = {
+      ...machinesReset[attackerIndex],
+      name: val,
+      targets: cleanIps,
+      attackLoaded: true,
+      attackImage: val,
+      attackCommandArgs: attackArgs,
+      attackCommand: attackCommandStr,
+    };
+
+    return machinesReset;
+  });
+
+  // aggiorna anche il NotificationContext locale/state se necessario
+  setAttackLoaded(true);
+};
+*/
+
+// helper: cerca definizione attacco (se non esiste già)
+function getAttackDefinition(attackName) {
+  if (!Array.isArray(attacks)) return null;
+  return attacks.find(a => a.name === attackName || a.image === attackName || a.displayName === attackName) || null;
+}
+
+const toggleAttack = (val) => {
+  setMachines((prevMachines) => {
+    // trova indice dell'attacker "principale"
+    const attackerIndex = prevMachines.findIndex(m => m.type === "attacker");
+
+    // resetta tutti gli attacker nello stato nuovo
+    const machinesReset = prevMachines.map((m) => {
+      if (m.type === "attacker") {
+        return {
+          ...m,
+          targets: [],
+          attackLoaded: false,
+          attackImage: "",
+          attackCommand: "",
+          attackCommandArgs: [],
+          name: m.name || "",
+        };
+      }
+      return m;
+    });
+
+    // se non trovi attacker, ritorna lo stato resettato
+    if (attackerIndex === -1) return machinesReset;
+
+    // leggi l'attacker corrente dallo stato precedente (per es. per ricavare domain)
+    const currAttacker = prevMachines[attackerIndex];
+
+    // se stiamo facendo "toggle unload" (l'attacker è già caricato) -> scarica tutto
+    if (currAttacker?.attackLoaded) {
+      // assicuriamoci di aggiornare anche il contesto esterno
+      setAttackLoaded(false);
+      return machinesReset;
+    }
+
+    // se val è falsy (es. ""), consideralo come request di unload
+    if (!val) {
+      setAttackLoaded(false);
+      return machinesReset;
+    }
+
+    // estrai attackerDomain e targets puliti (usando la tua funzione esistente)
+    const attackerDomain = currAttacker?.interfaces?.if?.[0]?.eth?.domain;
+    const cleanIps = extractTargetIPs(targets, attackerDomain); // targets viene dal componente
+
+    // prendi definizione dell'attacco
+    const attackDef = getAttackDefinition ? getAttackDefinition(val) : null;
+    const scriptPath = attackDef?.script || "/usr/local/bin/script.sh";
+    const entrypoint = attackDef?.entrypoint || null;
+    const params = attackDef?.parameters || {};
+
+    // funzione d'aiuto per normalizzare params (accetta array o stringa)
+    const normalizeParamTokens = (p) => {
+      if (!p) return [];
+      if (Array.isArray(p)) return p.map(String);
+      // se è stringa, split su whitespace (es "-p 22,80 --flag")
+      if (typeof p === 'string') return (p.match(/\S+/g) || []).map(String);
+      return [String(p)];
+    };
+
+    const before = normalizeParamTokens(params.argsBeforeTargets);
+    const after  = normalizeParamTokens(params.argsAfterTargets);
+
+    // costruiamo l'array di token in modo sicuro:
+    // [ entrypoint? , scriptPath, ...before, ...targets, ...after ]
+    const args = [];
+
+    if (entrypoint) args.push(String(entrypoint));
+    args.push(String(scriptPath));
+
+    for (const token of before) args.push(String(token));
+
+    for (const ip of cleanIps) args.push(String(ip));
+
+    for (const token of after) args.push(String(token));
+
+    // build string leggibile
+    const attackCommandStr = args.join(' ');
+
+    // aggiorna solo il machine attackerIndex con le info dell'attacco caricato
+    machinesReset[attackerIndex] = {
+      ...machinesReset[attackerIndex],
+      name: val,                     // qui salvi l'identificativo immagine/nome attacco
+      targets: cleanIps,
+      attackLoaded: true,
+      attackImage: val,
+      attackCommandArgs: args,       // array di token pronto per il main
+      attackCommand: attackCommandStr,
+    };
+
+    // aggiorna anche il context locale/global
+    setAttackLoaded(true);
+
+    return machinesReset;
+  });
 };
 
     /*const toggleAttack = (val) => {

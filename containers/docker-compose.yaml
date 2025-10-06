@@ -41,6 +41,23 @@ services:
       - NET_ADMIN
     profiles:
       - kali
+
+  Reconnaissance-icmp-scanning:
+    build: ./Reconnaissance/ICMP-scanning
+    image: icr/reconnaissance-icmp-scanning
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali
+
+  Reconnaissance-port-scanning:
+    build: ./Reconnaissance/port-scanning
+    image: icr/reconnaissance-port-scanning
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali
+
   dos-modbustcp-flood:
     build: ./dos/modbustcp-flood
     image: icr/dos-modbustcp-flood

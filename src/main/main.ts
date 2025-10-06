@@ -26,6 +26,7 @@ import AdmZip from 'adm-zip';
 import { generateZipNode } from '../shared/make-node';
 
 
+
 // In cima al file main (scope modulo)
 type CurrentLab = {
   name: string;
@@ -138,6 +139,7 @@ import { spawn } from 'child_process'; // metti questa importazione vicino a `im
 
 // ...
 
+/*
 ipcMain.handle("simulate-attack", async (event, { container, command }) => {
   const timestamp = new Date().toLocaleString();
   console.log(`[${timestamp}] simulate-attack request`);
@@ -231,6 +233,120 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
 
     proc.on('error', (err) => {
       console.error('❌ Spawn error:', err);
+      reject(err.message || String(err));
+    });
+  });
+});
+
+*/
+
+ipcMain.handle("simulate-attack", async (event, payload: any) => {
+  const timestamp = new Date().toLocaleString();
+  console.log(`[${timestamp}] simulate-attack request`);
+
+  // estrai campi
+  const commandArgs =
+    Array.isArray(payload?.commandArgs) && payload.commandArgs.length
+      ? payload.commandArgs.map(String)
+      : undefined;
+
+  const commandStr =
+    typeof payload?.command === "string" && payload.command.trim()
+      ? payload.command.trim()
+      : undefined;
+
+  const containerNameFromPayload =
+    typeof payload?.containerName === "string" && payload.containerName.trim()
+      ? payload.containerName.trim()
+      : undefined;
+
+  const rawContainerField =
+    typeof payload?.container === "string" && payload.container.trim()
+      ? payload.container.trim()
+      : undefined;
+
+  const imageName =
+    typeof payload?.imageName === "string" && payload.imageName.trim()
+      ? payload.imageName.trim()
+      : undefined;
+
+  // costruisci args (priorità array)
+  let args: string[] = [];
+  if (commandArgs) {
+    args = commandArgs;
+  } else if (commandStr) {
+    args = (commandStr.match(/\S+/g) || []).map(String);
+  } else {
+    throw new Error("No command provided (commandArgs/command missing).");
+  }
+  if (!args.length) throw new Error("Empty command arguments.");
+
+  console.log("Raw payload fields:", { rawContainerField, containerNameFromPayload, imageName });
+  console.log("Command ARGS (final):", args);
+
+  // decide quale valore usare per risolvere il container (priorità containerNameFromPayload)
+  // prende in ordine: containerNameFromPayload || rawContainerField || imageName
+  const candidate = containerNameFromPayload || rawContainerField || imageName;
+  if (!candidate) {
+    throw new Error("No container information provided (containerName/container/imageName missing).");
+  }
+
+  // helper: riconosce se una stringa sembra un reference immagine (contiene / o : o @)
+  const isImageRef = (s: string) => /[\/:@]/.test(s);
+
+  // ------- Trova container corrispondente all'immagine (riciclato esattamente come richiesto) -------
+  const containerName: string = await new Promise((resolve, reject) => {
+    // se il candidato non è un image-ref, usalo direttamente come nome container
+    if (!isImageRef(candidate)) {
+      console.log("Candidate appears to be a container name, using directly:", candidate);
+      return resolve(candidate);
+    }
+
+    // altrimenti (se è image-like) esegui il blocco originale per risolvere il container dall'immagine
+    exec(
+      `docker ps --filter ancestor=${candidate} --format "{{.Names}}"`,
+      (err, stdout, stderr) => {
+        if (err) {
+          console.error("❌ Error looking for container:", stderr || err.message);
+          return reject("Failed to find container for image: " + candidate);
+        }
+
+        const name = stdout.trim().split("\n")[0];
+        if (!name) {
+          console.warn("⚠️ No running container found for image:", candidate);
+          return reject("No running container found for image: " + candidate);
+        }
+
+        console.log(`✅ Using container: ${name}`);
+        resolve(name);
+      }
+    );
+  });
+
+  // ------- Esegui con spawn (arg array sicuro) -------
+  return await new Promise((resolve, reject) => {
+    const dockerArgs = ["exec", containerName, ...args];
+    console.log("Spawning process:", "docker", dockerArgs.join(" "));
+
+    const proc = spawn("docker", dockerArgs, { stdio: ["ignore", "pipe", "pipe"] });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (d) => (stdout += d.toString()));
+    proc.stderr.on("data", (d) => (stderr += d.toString()));
+
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        console.error(`❌ Command failed (code ${code}):`, stderr || `exit ${code}`);
+        return reject(stderr || `exit ${code}`);
+      }
+      console.log("✅ Command output:", stdout.trim());
+      resolve(stdout.trim());
+    });
+
+    proc.on("error", (err) => {
+      console.error("❌ Spawn error:", err);
       reject(err.message || String(err));
     });
   });

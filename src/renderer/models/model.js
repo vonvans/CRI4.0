@@ -119,6 +119,13 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "/usr/local/bin/arp_scan.sh",
+    entrypoint: "sh",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+    
   },
   {
     name: "icmp-scanning",
@@ -127,6 +134,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "/usr/local/bin/icmp_scan_scapy.py",
+    entrypoint: "python3",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "port-scanning",
@@ -135,6 +148,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "/usr/local/bin/port_scan_scapy.py",
+    entrypoint: "python3",
+    parameters: {
+      argsBeforeTargets: ["-p 21,22,23,25,53,80,443,502", "--verbose"],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "os-fingerprinting",
@@ -143,6 +162,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "service-enumeration",
@@ -151,6 +176,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "arp-spoofing",
@@ -159,6 +190,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "dns-spoofing",
@@ -167,6 +204,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
 
   {
@@ -176,6 +219,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "syn-flood",
@@ -184,6 +233,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "udp-flood",
@@ -192,6 +247,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "modbus-writecoil",
@@ -200,6 +261,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "modbus-writeregister",
@@ -208,6 +275,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
    {
     name: "packet-sniffing",
@@ -216,6 +289,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "modbus-read",
@@ -224,6 +303,12 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   },
   {
     name: "modbustcp-flood",
@@ -232,5 +317,11 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+    script: "",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
   }
 ]
