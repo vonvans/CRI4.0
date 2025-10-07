@@ -5,7 +5,7 @@ services:
     build: ./collector
     image: icr/collector
     ports:
-      - "1337:1337"
+      - "3100:3100"
     profiles: [collector]
 
   collector-db:
@@ -57,6 +57,23 @@ services:
       - NET_ADMIN
     profiles:
       - kali
+
+  Reconnaissance-os-fingerprint:
+    build: ./Reconnaissance/os-fingerprinting
+    image: icr/reconnaissance-os-fingerprint
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali
+
+  Reconnaissance-service-enumeration:
+    build: ./Reconnaissance/service-enumeration
+    image: icr/reconnaissance-service-enumeration
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali
+
 
   dos-modbustcp-flood:
     build: ./dos/modbustcp-flood

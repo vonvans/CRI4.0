@@ -156,17 +156,17 @@ export const attacksModel = [
     }
   },
   {
-    name: "os-fingerprinting",
+    name: "os-fingerprint",
     displayName: "OS Fingerprinting",
     category: "Reconnaissance",
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
-    entrypoint: "",
+    script: "/usr/local/bin/os_fingerprint_scapy.py",
+    entrypoint: "python3",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
-      argsAfterTargets: []      // nessun flag dopo gli IP
+      argsAfterTargets: ["--verbose"]      // nessun flag dopo gli IP
     }
   },
   {
@@ -176,11 +176,11 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
-    entrypoint: "",
+    script: "/usr/local/bin/service_enumeration_scapy.py",
+    entrypoint: "python3",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
-      argsAfterTargets: []      // nessun flag dopo gli IP
+      argsAfterTargets: ["--verbose"]      // nessun flag dopo gli IP
     }
   },
   {
