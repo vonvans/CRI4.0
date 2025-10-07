@@ -86,6 +86,10 @@ function TopologyGraph({machines}) {
 				shape: "image",
 				value: 8
 			},
+			"ngfw": {
+				image: DIR + "ngfw_appliance.png",
+				shape: "image",
+			},
 			"switch": {
 				image: DIR + "switch.png",
 				shape: "image",

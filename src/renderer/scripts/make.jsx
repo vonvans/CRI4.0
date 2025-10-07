@@ -98,6 +98,9 @@ function makeLabConfFile(netkit, lab) {
 		if(machine.type == "terminal" || machine.type == "ws" || machine.type == "ns"){
 			lab.file["lab.conf"] += machine.name + "[image]=icr/kathara-base";
 		}
+		if(machine.type == "ngfw"){
+			lab.file["lab.conf"] += machine.name + "[image]=ngfw_appliance";
+		}
 		if(machine.type == "attacker"){
 			if (machine.attackLoaded && machine.attackImage != ""){
 				lab.file["lab.conf"] += machine.name + "[image]=" + machine.attackImage;
