@@ -179,6 +179,10 @@ function makeLabConfFile(netkit, lab) {
     lab.file["lab.conf"] += `${machineName}[bridged]=true\n`;
 
     // image per tipo
+if(machine.type == "scada"){ lab.file["lab.conf"] += machine.name + "[image]=icr/scada"; }
+if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/apg"; }
+if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
+if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
     if (machine.type == "router") {
       if (machine.routingSoftware == "frr") {
