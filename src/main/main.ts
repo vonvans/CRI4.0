@@ -46,6 +46,51 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
+const sendLog = (level: 'log' | 'error' | 'warn' | 'info' | 'debug', message: string) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('log-message', { level, message });
+  }
+};
+
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+  debug: console.debug,
+};
+
+console.log = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  sendLog('log', message);
+  originalConsole.log(...args);
+};
+
+console.error = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  sendLog('error', message);
+  originalConsole.error(...args);
+};
+
+console.warn = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  sendLog('warn', message);
+  originalConsole.warn(...args);
+};
+
+console.info = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  sendLog('info', message);
+  originalConsole.info(...args);
+};
+
+console.debug = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  sendLog('debug', message);
+  originalConsole.debug(...args);
+};
+
+
 async function emptyKatharaLabs(labsDir: string) {
   try {
     const entries = await fsp.readdir(labsDir);
@@ -54,15 +99,15 @@ async function emptyKatharaLabs(labsDir: string) {
         fsp.rm(path.join(labsDir, entry), { recursive: true, force: true })
       )
     );
-    console.log("🧹 Contenuto rimosso da:", labsDir);
+    sendLog('log', `🧹 Contenuto rimosso da: ${labsDir}`);
   } catch (err) {
-    console.error("❌ Errore durante lo svuotamento:", err);
+    sendLog('error', `❌ Errore durante lo svuotamento: ${err}`);
   }
 }
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
+  sendLog('log', msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
 });
 
@@ -139,142 +184,231 @@ import { spawn } from 'child_process'; // metti questa importazione vicino a `im
 // ...
 
 ipcMain.handle("simulate-attack", async (event, { container, command }) => {
-  const timestamp = new Date().toLocaleString();
-  console.log(`[${timestamp}] simulate-attack request`);
-  console.log(`Image name received: ${container}`);
-  console.log('Raw command payload (main):', command);
 
-  // ------- Normalizzazione comando -------
-  // Accettiamo:
-  // - array di token: ['sh','/usr/local/bin/script.sh','192.168.10.1']
-  // - stringa con spazi: "sh /usr/local/bin/script.sh 192.168.10.1"
-  // - stringa con virgole: "sh,/usr/local/bin/script.sh,192.168.10.1"
-  // - array con singolo elemento che contiene virgole: ["sh,/usr/..."]
+  const timestamp = new Date().toLocaleString();
+
+  sendLog('log', `[${timestamp}] simulate-attack request`);
+
+  sendLog('log', `Image name received: ${container}`);
+
+  sendLog('log', `Raw command payload (main): ${command}`);
+
+
+
   let args: string[] = [];
 
+
+
   try {
+
     if (Array.isArray(command)) {
+
       args = command.flatMap((el) =>
+
         String(el).split(/[,\s]+/).filter(Boolean)
+
       );
+
     } else if (typeof command === 'string') {
+
       args = command.trim().split(/[,\s]+/).filter(Boolean);
+
     } else {
+
       throw new Error('Invalid command type');
+
     }
 
-    // rimuovi virgolette esterne residue e whitespace
+
+
     args = args.map(a => a.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
 
-    // de-dup mantenendo ordine
+
+
     const seen = new Set<string>();
+
     args = args.filter(x => (seen.has(x) ? false : (seen.add(x), true)));
 
+
+
     if (args.length === 0) {
+
       throw new Error('No valid command arguments after normalization.');
+
     }
 
-    console.log('Normalized args for docker exec:', args);
+
+
+    sendLog('log', `Normalized args for docker exec: ${args}`);
+
   } catch (err) {
-    console.error('❌ Failed to normalize command:', err);
+
+    sendLog('error', `❌ Failed to normalize command: ${err}`);
+
     throw err;
+
   }
 
-  // ------- Trova container corrispondente all'immagine -------
+
+
   const containerName = await new Promise<string>((resolve, reject) => {
+
     exec(
+
       `docker ps --filter ancestor=${container} --format "{{.Names}}"`,
+
       (err, stdout, stderr) => {
+
         if (err) {
-          console.error("❌ Error looking for container:", stderr || err.message);
-          return reject("Failed to find container for image: " + container);
+
+          sendLog('error', `❌ Error looking for container: ${stderr || err.message}`);
+
+          return reject(`Failed to find container for image: ${container}`);
+
         }
+
+
 
         const name = stdout.trim().split("\n")[0];
+
         if (!name) {
-          console.warn("⚠️ No running container found for image:", container);
-          return reject("No running container found for image: " + container);
+
+          sendLog('warn', `⚠️ No running container found for image: ${container}`);
+
+          return reject(`No running container found for image: ${container}`);
+
         }
 
-        console.log(`✅ Using container: ${name}`);
+
+
+        sendLog('log', `✅ Using container: ${name}`);
+
         resolve(name);
+
       }
+
     );
+
   });
 
-  // ------- Esegui con spawn (arg array sicuro) -------
+
+
   return new Promise((resolve, reject) => {
+
     const dockerArgs = ['exec', containerName, ...args];
-    console.log('Spawning process:', 'docker', dockerArgs.join(' '));
+
+    sendLog('log', `Spawning process: docker ${dockerArgs.join(' ')}`);
+
+
 
     const proc = spawn('docker', dockerArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
+
+
     let stdout = '';
+
     let stderr = '';
 
+
+
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+
+      const message = data.toString();
+
+      stdout += message;
+
+      sendLog('log', message);
+
     });
+
+
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+
+      const message = data.toString();
+
+      stderr += message;
+
+      sendLog('error', message);
+
     });
+
+
 
     proc.on('close', (code) => {
+
       if (code !== 0) {
-        console.error('❌ Command failed (code ' + code + '):', stderr || `exit ${code}`);
-        return reject(stderr || `exit ${code}`);
+
+        const errorMessage = `❌ Command failed (code ${code}): ${stderr || `exit ${code}`}`;
+
+        sendLog('error', errorMessage);
+
+        return reject(errorMessage);
+
       }
-      console.log('✅ Command output:', stdout.trim());
+
+      const successMessage = `✅ Command output: ${stdout.trim()}`;
+
+      sendLog('log', successMessage);
+
       resolve(stdout.trim());
+
     });
 
+
+
     proc.on('error', (err) => {
-      console.error('❌ Spawn error:', err);
-      reject(err.message || String(err));
+
+      const errorMessage = `❌ Spawn error: ${err.message || String(err)}`;
+
+      sendLog('error', errorMessage);
+
+      reject(errorMessage);
+
     });
+
   });
+
 });
 
 
 ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
-  console.log('machines?', Array.isArray(machines), machines?.length);
-  console.log('labInfo?', labInfo);
+  sendLog('log', `machines? ${Array.isArray(machines)} ${machines?.length}`);
+  sendLog('log', `labInfo? ${JSON.stringify(labInfo)}`);
   
   const LAB_NAME = labInfo?.name || 'default-lab';
   const LABS_DIR = path.join(os.homedir(), 'kathara-labs');
   const ZIP_PATH = path.join(LABS_DIR, `${LAB_NAME}.zip`);
   const LAB_PATH = path.join(LABS_DIR, LAB_NAME);
 
-  // 1. Crea dir di destinazione
   if (!fs.existsSync(LABS_DIR)) {
     fs.mkdirSync(LABS_DIR, { recursive: true });
   }
 
-  // 2. Genera ZIP con i dati passati
-  console.log("📦 Generating ZIP...");
+  sendLog('log', "📦 Generating ZIP...");
   await generateZipNode(machines, labInfo, ZIP_PATH);
 
-  // 3. Estrai ZIP
-  console.log("📂 Extracting ZIP...");
+  sendLog('log', "📂 Extracting ZIP...");
   const zip = new AdmZip(ZIP_PATH);
   zip.extractAllTo(LABS_DIR, true);
 
-// subito dopo aver definito LAB_NAME / LABS_DIR / ZIP_PATH / LAB_PATH
-CURRENT_LAB = { name: LAB_NAME, labsDir: LABS_DIR, labPath: LAB_PATH, zipPath: ZIP_PATH };
+  CURRENT_LAB = { name: LAB_NAME, labsDir: LABS_DIR, labPath: LAB_PATH, zipPath: ZIP_PATH };
 
-  // 4. Avvia kathara
-  console.log("🚀 Launching Kathara...");
+  sendLog('log', "🚀 Launching Kathara...");
   return new Promise((resolve, reject) => {
-    console.log("📂 Lanciando kathara in:", LAB_PATH);
-console.log("📄 File presenti:", fs.readdirSync(LABS_DIR));
+    sendLog('log', `📂 Lanciando kathara in: ${LAB_PATH}`);
+    sendLog('log', `📄 File presenti: ${fs.readdirSync(LABS_DIR)}`);
     exec(`kathara lstart --noterminals`, { cwd: LABS_DIR }, (error, stdout, stderr) => {
       if (error) {
-        console.error("❌ Failed to start:", stderr || error.message);
-        return reject(stderr || error.message);
+        const errorMessage = `❌ Failed to start: ${stderr || error.message}`;
+        sendLog('error', errorMessage);
+        return reject(errorMessage);
       }
-
-      console.log("✅ Lab started.");
+      if (stderr) {
+        sendLog('warn', stderr);
+      }
+      sendLog('log', stdout);
+      sendLog('log', "✅ Lab started.");
       resolve(stdout.trim());
     });
   });
@@ -283,30 +417,31 @@ console.log("📄 File presenti:", fs.readdirSync(LABS_DIR));
 
 
 ipcMain.handle('stop-simulation', async () => {
-
   if (!CURRENT_LAB) {
     throw new Error("Nessuna simulazione attiva in questa sessione.");
   }
 
   const { name, labsDir, labPath } = CURRENT_LAB;
 
-  // usa -n <labname> per essere espliciti
-  const safeName = String(name).replace(/"/g, '\\"');
-  //const cmd = `kathara lclean -n "${safeName}"`;
- const cmd = `kathara lclean -d "${labsDir}"`;
+  const safeName = String(name).replace(/"/g, '\"');
+  const cmd = `kathara lclean -d "${labsDir}"`;
 
-  console.log("🛑 Stopping lab with:", cmd);
+  sendLog('log', `🛑 Stopping lab with: ${cmd}`);
 
   return await new Promise((resolve, reject) => {
     exec(cmd, async (error, stdout, stderr) => {
       if (error) {
-        console.error("❌ lclean failed:", stderr || error.message);
-        return reject(stderr || error.message);
+        const errorMessage = `❌ lclean failed: ${stderr || error.message}`;
+        sendLog('error', errorMessage);
+        return reject(errorMessage);
       }
-
+      if (stderr) {
+        sendLog('warn', stderr);
+      }
+      sendLog('log', stdout);
       await emptyKatharaLabs(labsDir);
       
-      console.log("✅ lclean done.");
+      sendLog('log', "✅ lclean done.");
       resolve(stdout.trim());
     });
   });
