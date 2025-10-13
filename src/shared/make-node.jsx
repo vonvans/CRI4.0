@@ -179,6 +179,7 @@ function makeLabConfFile(netkit, lab) {
     lab.file["lab.conf"] += `${machineName}[bridged]=true\n`;
 
     // image per tipo
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
     if (machine.type == "router") {
       if (machine.routingSoftware == "frr") {
         //lab.file["lab.conf"] += `${machine.name}[image]=kathara/frr`;

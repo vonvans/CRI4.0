@@ -32,6 +32,7 @@ function makeStartupFiles(netkit, lab) {
 	lab.file["collector.startup"] = "";
 	lab.file["collectordb.startup"] = "";
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "")
 			lab.file[machine.name + ".startup"] = "";
 	}
@@ -75,6 +76,7 @@ function makeLabConfFile(netkit, lab) {
 	lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
 
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.bridged) {
 			lab.file["lab.conf"] += `${machine.name}[bridged]=true\n`;
 		}
@@ -119,10 +121,12 @@ function makeLabConfFile(netkit, lab) {
 // TODO: Metti a fattor comune:
 /*
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && .....
 */
 function makeTerminal(netkit, lab) {
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "terminal" && machine.pc.dns && machine.pc.dns != "-") {
 			lab.folders.push(machine.name + "/etc");
 			lab.file[machine.name + "/etc/resolv.conf"] = "nameserver " + machine.pc.dns + "\n";
@@ -132,6 +136,7 @@ function makeTerminal(netkit, lab) {
 
 function makeAttacker(netkit, lab) {
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "attacker" && machine.pc.dns && machine.pc.dns != "-") {
 			lab.folders.push(machine.name + "/etc");
 			lab.file[machine.name + "/etc/resolv.conf"] = "nameserver " + machine.pc.dns + "\n";
@@ -450,6 +455,7 @@ function makeBgpConfQuagga(router, lab) {
 
 function makeWebserver(netkit, lab) {
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "ws") {
 			if (machine.ws.userdir == true) {
 				lab.folders.push(machine.name + "/var/www/html");
@@ -527,6 +533,7 @@ function makeStaticRouting(netkit, lab){
 
 function makeOther(netkit, lab) {
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "other" && machine.other.image) {
 			lab.file["lab.conf"] += machine.name + '[image]="' + machine.other.image + '"\n';
 			for (let file of machine.other.files) {
@@ -548,6 +555,7 @@ function makeNameserver(netkit, lab) {
 
 	// generazione file e cartelle comuni
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "ns") {
 			lab.file[machine.name + ".startup"] += "systemctl start named\n";
 			lab.folders.push(machine.name + "/etc/bind");
@@ -568,6 +576,7 @@ function makeNameserver(netkit, lab) {
 	//db.root in ogni macchina dns
 	if (nsroot) {
 		for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 			if (machine.name && machine.name != "" && machine.type == "ns") {
 				lab.file[machine.name + "/etc/bind/db.root"] = "";
 				if (machine.ns.authority && machine.ns.zone == ".") {
@@ -586,6 +595,7 @@ function makeNameserver(netkit, lab) {
 		}
 		//entry in db.zona e named.conf per le altre macchine
 		for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 			if (machine.name && machine.name != "" && machine.type == "ns" && machine.ns.authority) {
 				authority[machine.ns.zone] = machine;
 				if (machine.ns.zone != ".") {
@@ -596,6 +606,7 @@ function makeNameserver(netkit, lab) {
 		}
 		//entry per l'alberatura delle zone (. conosce .com, .com conosce pippo.com, ecc)
 		for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 			if (machine.name && machine.name != "") {
 				for (let f in machine.interfaces.if) {
 					let ip;
@@ -663,6 +674,7 @@ function makeNameserver(netkit, lab) {
 
 function makeOVSwitch(netkit, lab) {
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "switch") {
 			lab.file["lab.conf"] += machine.name + '[image]="kathara/sdn"\n';
 			lab.file[machine.name + ".startup"] +=
@@ -686,6 +698,7 @@ function makeOVSwitch(netkit, lab) {
 function makeRyuController(netkit, lab) {
 	let isSDN = false;
 	for (let machine of netkit) {
+if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
 		if (machine.name && machine.name != "" && machine.type == "controller") {
 			lab.file["lab.conf"] += machine.name + '[image]="kathara/sdn"\n';
 			isSDN = true;

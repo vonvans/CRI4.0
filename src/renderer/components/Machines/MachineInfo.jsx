@@ -64,6 +64,7 @@ export function MachineInfo({id, machine, machines, setMachines}) {
                         <Radio value="ns">Name Server</Radio>
                         <Radio value="ws">Web Server</Radio>
                         <Radio value="ngfw">NGFW Appliance</Radio>
+			<Radio value="plc">PLC</Radio>
                         {machines.filter(m => m.type === "controller" && m.id !== machine.id).length === 1 && (
                             <Radio value="switch">Open vSwitch</Radio>
                         ) || (
