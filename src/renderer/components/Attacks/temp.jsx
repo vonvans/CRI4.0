@@ -13,7 +13,7 @@ import MachineSelector from "./MachineSelector";
 import AttackSelector from "./AttackSelector";
 import { attacksModel } from "../../models/model";
 
-function DOS({attacker, attacks, isLoading, machines, setMachines, handleRefresh}) {
+function PING({attacker, attacks, isLoading, machines, setMachines, handleRefresh}) {
 
   const [selectedImage, setSelectedImage] = useState(attacker?.attackImage || "");
   const { attackLoaded, setAttackLoaded } = useContext(NotificationContext);
@@ -46,11 +46,11 @@ const [speedMode, setSpeedMode]               = useState(null); // 'fast' | 'fas
 
  // --- Varianti ping ---
 // flood: come ora
-const DOS_FLOOD = new Set(["icmp-flood", "syn-flood", "udp-flood"]);
+const PING_FLOOD = new Set(["icmp-ping", "syn-ping", "udp-ping"]);
 // lite: nuove
-const DOS_LITE  = new Set(["icmp-floodlite", "syn-floodlite", "udp-floodlite"]);
+const PING_LITE  = new Set(["icmp-pinglite", "syn-pinglite", "udp-pinglite"]);
 // tutte
-const DOS_ALL   = new Set([...DOS_FLOOD, ...DOS_LITE]);
+const PING_ALL   = new Set([...PING_FLOOD, ...PING_LITE]);
 
 const isIcmpKey = (k) => k.includes("icmp");
 const isSynKey  = (k) => k.includes("syn");
@@ -59,14 +59,14 @@ const isUdpKey  = (k) => k.includes("udp");
 // mapping di base (prima degli IP). flood conserva --flood; lite NO flood.
 const PING_BEFORE_TOKENS_BY_NAME = {
   // flood
-  "icmp-flood": ["-1", "--flood"],
-  "syn-flood":  ["-S", "--flood"],
-  "udp-flood":  ["-2", "--flood"],
+  "icmp-ping": ["-1", "--flood"],
+  "syn-ping":  ["-S", "--flood"],
+  "udp-ping":  ["-2", "--flood"],
 
   // lite (no flood)
-  "icmp-floodlite": ["-1"],
-  "syn-floodlite":  ["-S"],
-  "udp-floodlite":  ["-2"],
+  "icmp-pinglite": ["-1"],
+  "syn-pinglite":  ["-S"],
+  "udp-pinglite":  ["-2"],
 };
 
   // salva temporaneamente argsAfterTargets prima di sovrascriverli per "whole-subnet"
@@ -86,7 +86,7 @@ const PING_BEFORE_TOKENS_BY_NAME = {
         setExtraText(after.join(' '));
 
         // se è icmp-ping, parse dei parametri (compatibile con la logica Reconnaissance)
-        if (DOS_ALL.has(def.name)) {
+        if (PING_ALL.has(def.name)) {
           const afterAll = Array.isArray(def.parameters.argsAfterTargets)
             ? def.parameters.argsAfterTargets.map(String)
             : (typeof def.parameters.argsAfterTargets === "string"
@@ -288,7 +288,7 @@ function getPingBeforeTokens(defName, opts = {}) {
     destPortEnabled = false, destPortValue = "",
   } = opts;
 
-  const base = PING_BEFORE_TOKENS_BY_NAME[defName] || PING_BEFORE_TOKENS_BY_NAME["icmp-flood"];
+  const base = PING_BEFORE_TOKENS_BY_NAME[defName] || PING_BEFORE_TOKENS_BY_NAME["icmp-ping"];
   const before = [...base];
 
   // ---- LITE extra ----
@@ -329,17 +329,17 @@ function getPingBeforeTokens(defName, opts = {}) {
 }
 
 function pingMapKeyForImage(imageName) {
-  if (!imageName) return "icmp-flood";
+  if (!imageName) return "icmp-ping";
   if (PING_BEFORE_TOKENS_BY_NAME[imageName]) return imageName;
 
   const short = String(imageName).split("/").pop();
   if (PING_BEFORE_TOKENS_BY_NAME[short]) return short;
 
-  if (short.includes("syn"))  return short.includes("lite") ? "syn-floodlite"  : "syn-flood";
-  if (short.includes("udp"))  return short.includes("lite") ? "udp-floodlite"  : "udp-flood";
-  if (short.includes("icmp")) return short.includes("lite") ? "icmp-floodlite" : "icmp-flood";
+  if (short.includes("syn"))  return short.includes("lite") ? "syn-pinglite"  : "syn-ping";
+  if (short.includes("udp"))  return short.includes("lite") ? "udp-pinglite"  : "udp-ping";
+  if (short.includes("icmp")) return short.includes("lite") ? "icmp-pinglite" : "icmp-ping";
 
-  return "icmp-flood";
+  return "icmp-ping";
 }
 
 function getPingKey(attackDef, selectedImage, requestedImage) {
@@ -356,7 +356,7 @@ const rebuildPingArgs = (imageName) => {
   if (!imageName) return;
 
   const mapKey = getPingKey(getAttackDefinition(imageName), selectedImage, imageName);
-  const isLite = DOS_LITE.has(mapKey);
+  const isLite = PING_LITE.has(mapKey);
  
 
   const beforeTokens = getPingBeforeTokens(mapKey, {
@@ -646,11 +646,11 @@ const normalizeParamTokens = (p) => {
 const pingKey = getPingKey(attackDef, selectedImage, val);
 
 let before;
-if (DOS_ALL.has(pingKey)) {
+if (PING_ALL.has(pingKey)) {
   before = getPingBeforeTokens(pingKey, {
     aEnabled: pingAEnabled,
     aText: pingAText,
-    isLite: DOS_LITE.has(pingKey),
+    isLite: PING_LITE.has(pingKey),
     countEnabled: liteCountEnabled,
     countValue: liteCountValue,
     speed: speedMode,
@@ -699,7 +699,7 @@ console.log("PING KEY:", pingKey, "BEFORE TOKENS:", before);
       const def = getAttackDefinition(requestedImage);
       if (!def) return;
       // If specific rebuild needed for ping attack, call rebuildPingArgs
-      if (DOS_ALL.has(def.name)) {
+      if (PING_ALL.has(def.name)) {
         rebuildPingArgs(requestedImage);
       }
     } catch (e) {
@@ -718,7 +718,7 @@ console.log("PING KEY:", pingKey, "BEFORE TOKENS:", before);
       <div className="flex-grow">
         <div className="grid gap-2">
           <MachineSelector machines={machines} setTargets={setTargets} attacker={attacker} />
-          <AttackSelector type="dos" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh}/>
+          <AttackSelector type="ping" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh}/>
         </div>
       </div>
 
@@ -729,8 +729,8 @@ console.log("PING KEY:", pingKey, "BEFORE TOKENS:", before);
             if (!def) return <div className="text-xs text-foreground">Selected attack definition not found.</div>;
 
             // se è il ping icmp-ping mostra la UI specifica (timeout + -a)
-            if (DOS_ALL.has(def.name)) {
-  const isLite = DOS_LITE.has(def.name);
+            if (PING_ALL.has(def.name)) {
+  const isLite = PING_LITE.has(def.name);
 
   return (
     <div className="grid gap-3">
@@ -922,4 +922,4 @@ console.log("PING KEY:", pingKey, "BEFORE TOKENS:", before);
   );
 }
 
-export default DOS;
+export default PING;

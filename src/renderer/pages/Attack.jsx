@@ -13,6 +13,7 @@ import { XSymbol } from "../components/Symbols/XSymbol";
 import useAttacks from "../hooks/useAttacks";
 import { attacksModel } from "../models/model";
 import DOS from "../components/Attacks/DOS";
+import PING from "../components/Attacks/temp";
 import Reconnaissance from "../components/Attacks/Reconnaissance"
 import MITM from "../components/Attacks/MITM"
 import Injection from "../components/Attacks/Injection"

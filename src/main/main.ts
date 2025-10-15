@@ -271,7 +271,22 @@ ipcMain.handle("simulate-attack", async (event, payload: any) => {
       : undefined;
 
   // costruisci args (priorità array)
-  let args: string[] = [];
+  // --- COSTRUZIONE ARGS ROBUSTA ---
+let args: string[] = [];
+if (Array.isArray(payload?.commandArgs) && payload.commandArgs.length) {
+  // split ogni elemento per spazi/virgole, rimuovi vuoti e virgolette esterne
+  args = payload.commandArgs
+    .flatMap((el: any) => String(el).match(/\S+/g) || [])
+    .map((a: string) => a.replace(/^["']|["']$/g, '').trim())
+    .filter(Boolean);
+} else if (typeof payload?.command === "string" && payload.command.trim()) {
+  args = (payload.command.match(/\S+/g) || [])
+    .map((a: string) => a.replace(/^["']|["']$/g, '').trim())
+    .filter(Boolean);
+} else {
+  throw new Error("No command provided (commandArgs/command missing).");
+}
+if (!args.length) throw new Error("Empty command arguments.");
   if (commandArgs) {
     args = commandArgs;
   } else if (commandStr) {
@@ -324,6 +339,7 @@ ipcMain.handle("simulate-attack", async (event, payload: any) => {
   });
 
   // ------- Esegui con spawn (arg array sicuro) -------
+  /*
   return await new Promise((resolve, reject) => {
     const dockerArgs = ["exec", containerName, ...args];
     console.log("Spawning process:", "docker", dockerArgs.join(" "));
@@ -341,8 +357,15 @@ ipcMain.handle("simulate-attack", async (event, payload: any) => {
         console.error(`❌ Command failed (code ${code}):`, stderr || `exit ${code}`);
         return reject(stderr || `exit ${code}`);
       }
-      console.log("✅ Command output:", stdout.trim());
-      resolve(stdout.trim());
+       // ✅ se negli argomenti compare "flood", non mostrare l’output
+  const hasFlood = args.some(a => String(a).toLowerCase().includes("flood"));
+  if (!hasFlood) {
+    console.log("✅ Command output:", stdout.trim());
+  } else {
+    console.log("⚡ Flood mode active — skipping stdout log");
+  }
+
+  resolve(stdout.trim());
     });
 
     proc.on("error", (err) => {
@@ -350,6 +373,79 @@ ipcMain.handle("simulate-attack", async (event, payload: any) => {
       reject(err.message || String(err));
     });
   });
+  */
+  // ------- Esegui con spawn (arg array sicuro) -------
+return await new Promise((resolve, reject) => {
+  const hasFlood = args.some(a => String(a).toLowerCase().includes("flood"));
+
+  // helper per quotare in modo sicuro arg singoli per la shell interna
+  const shQuote = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+
+  let dockerArgs: string[];
+
+  if (hasFlood) {
+    const killAfter = Number(payload?.floodKillAfterSec ?? 4); // default 4s
+
+    // costruiamo innerCmd: NOTA -> NON mettiamo ';' dopo '&'
+    const commandPart = args.map(shQuote).join(' ');
+    const innerCmd = `${commandPart} & pid=$!; sleep ${killAfter}; kill -TERM "$pid"; wait "$pid" 2>/dev/null`;
+
+    // eseguiamo con sh -lc e passiamo l'intera innerCmd come UN SOLO ARG
+    dockerArgs = ['exec', containerName, 'sh', '-lc', innerCmd];
+
+    console.log(`Spawning process (flood mode, auto-stop ${killAfter}s): docker ${dockerArgs.join(' ')}`);
+  } else {
+    dockerArgs = ['exec', containerName, ...args];
+    console.log('Spawning process:', 'docker', dockerArgs.join(' '));
+  }
+
+  const proc = spawn('docker', dockerArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  let stdout = '';
+  let stderr = '';
+
+  proc.stdout.on('data', (d) => (stdout += d.toString()));
+  proc.stderr.on('data', (d) => (stderr += d.toString()));
+
+proc.on('close', (code) => {
+  // normal success
+  if (code === 0) {
+    if (!hasFlood) {
+      console.log('✅ Command output:', stdout.trim());
+    } else {
+      console.log('⚡ Flood mode active — output suppressed and auto-stopped.');
+    }
+    return resolve(stdout.trim());
+  }
+
+  // Accept specific non-zero exit in flood mode if the program prints the expected notice
+  if (hasFlood) {
+    const combined = (stderr + '\n' + stdout).toLowerCase();
+    // controlla la frase che hai visto — regola la stringa se necessario
+    const floodNoticePatterns = [
+      'hping in flood mode',
+      'no replies will be shown',
+      // aggiungi altri pattern se vedi messaggi diversi nei tuoi container
+    ];
+    const matched = floodNoticePatterns.some(p => combined.includes(p));
+
+    if (matched && (code === 1 || code === 0)) {
+      console.log('⚡ Flood mode: non-fatal notice detected, treating as success.');
+      return resolve(stdout.trim());
+    }
+  }
+
+  // fallback: errore reale
+  console.error(`❌ Command failed (code ${code}):`, stderr || `exit ${code}`);
+  return reject(stderr || `exit ${code}`);
+});
+
+  proc.on('error', (err) => {
+    console.error('❌ Spawn error:', err);
+    reject(err.message || String(err));
+  });
+});
+
 });
 
 

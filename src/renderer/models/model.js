@@ -151,7 +151,7 @@ export const attacksModel = [
     script: "/usr/local/bin/port_scan_scapy.py",
     entrypoint: "python3",
     parameters: {
-      argsBeforeTargets: ["-p 21,22,23,25,53,80,443,502", "--verbose"],    // nessun flag prima degli IP
+      argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
@@ -166,7 +166,7 @@ export const attacksModel = [
     entrypoint: "python3",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
-      argsAfterTargets: ["--verbose"]      // nessun flag dopo gli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
   {
@@ -180,7 +180,7 @@ export const attacksModel = [
     entrypoint: "python3",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
-      argsAfterTargets: ["--verbose"]      // nessun flag dopo gli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
   {
@@ -204,7 +204,7 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
+    script: "./icmp",
     entrypoint: "",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
@@ -219,7 +219,7 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
+    script: "hping3",
     entrypoint: "",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
@@ -233,7 +233,7 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
+    script: "hping3",
     entrypoint: "",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
@@ -247,13 +247,143 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
+    script: "hping3",
     entrypoint: "",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
+
+{
+    name: "icmp-floodlite",
+    displayName: "ICMP Flood lite",
+    category: "dos",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "syn-floodlite",
+    displayName: "SYN Flood lite",
+    category: "dos",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "udp-floodlite",
+    displayName: "UDP Flood lite",
+    category: "flood",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+
+  {
+    name: "icmp-ping",
+    displayName: "ICMP Ping",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "syn-ping",
+    displayName: "SYN Ping",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "udp-ping",
+    displayName: "UDP Ping",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+
+{
+    name: "icmp-pinglite",
+    displayName: "ICMP Ping lite",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "syn-pinglite",
+    displayName: "SYN Ping lite",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  {
+    name: "udp-pinglite",
+    displayName: "UDP Ping lite",
+    category: "ping",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "hping3",
+    entrypoint: "",
+    parameters: {
+      argsBeforeTargets: [],    // nessun flag prima degli IP
+      argsAfterTargets: []      // nessun flag dopo gli IP
+    }
+  },
+  
   {
     name: "modbus-writecoil",
     displayName: "Modbus Write Coil",
