@@ -185,7 +185,7 @@ const PING_BEFORE_TOKENS_BY_NAME = {
           : (typeof params.argsAfterTargets === "string" ? tokenize(params.argsAfterTargets) : []);
 
         const attackerDomain = m?.interfaces?.if?.[0]?.eth?.domain;
-        const cleanIps = extractTargetIPs(targets, attackerDomain);
+        const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
         const newArgs = [];
         if (entrypoint) newArgs.push(String(entrypoint));
@@ -247,7 +247,7 @@ const PING_BEFORE_TOKENS_BY_NAME = {
         const after = Array.isArray(params.argsAfterTargets) ? params.argsAfterTargets.map(String) : (typeof params.argsAfterTargets === "string" ? tokenize(params.argsAfterTargets) : []);
 
         const attackerDomain = m?.interfaces?.if?.[0]?.eth?.domain;
-        const cleanIps = extractTargetIPs(targets, attackerDomain);
+        const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
         const newArgs = [];
         if (entrypoint) newArgs.push(String(entrypoint));
@@ -488,7 +488,7 @@ const rebuildPingArgs = (imageName) => {
   useEffect(() => {
     setArpPrevArgsAfter(null);
   }, [selectedImage]);
-
+/*
   function extractTargetIPs(targets = [], attackerDomain) {
     const ips = [];
     targets.forEach((t) => {
@@ -504,6 +504,34 @@ const rebuildPingArgs = (imageName) => {
     });
     return Array.from(new Set(ips));
   }
+    */
+
+
+  // PING.jsx
+function extractTargetIPs(
+  targets = [],
+  attackerDomain,
+  { allowOtherDomains = true } = {}  // default: includi anche altre subnet
+) {
+  const ips = [];
+  targets.forEach((t) => {
+    if (!t || !t.interfaces || !Array.isArray(t.interfaces.if)) return;
+
+    t.interfaces.if.forEach((iface) => {
+      try {
+        if (!iface || !iface.eth || !iface.ip) return;
+
+        // Se allowOtherDomains è true, non filtrare per dominio
+        const sameDomain = iface.eth.domain === attackerDomain;
+        if ((allowOtherDomains || sameDomain)) {
+          const ipOnly = String(iface.ip).split('/')[0].trim();
+          if (ipRegex.test(ipOnly)) ips.push(ipOnly);
+        }
+      } catch {}
+    });
+  });
+  return Array.from(new Set(ips));
+}
 
   // helper: trova definizione attacco
   function getAttackDefinition(attackName) {
@@ -628,7 +656,7 @@ if (def) {
       }
 
       const attackerDomain = currAttacker?.interfaces?.if?.[0]?.eth?.domain;
-      const cleanIps = extractTargetIPs(targets, attackerDomain);
+      const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
       const attackDef = getAttackDefinition ? getAttackDefinition(val) : null;
       const scriptPath = attackDef?.script || "/usr/local/bin/script.sh";

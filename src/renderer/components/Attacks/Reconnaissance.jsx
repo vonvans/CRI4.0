@@ -418,7 +418,7 @@ function updateAttackArgsBefore(attackName, tokens) {
         : (typeof params.argsAfterTargets === "string" ? tokenize(params.argsAfterTargets) : []);
 
       const attackerDomain = m?.interfaces?.if?.[0]?.eth?.domain;
-      const cleanIps = extractTargetIPs(targets, attackerDomain);
+      const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
       const newArgs = [];
       if (entrypoint) newArgs.push(String(entrypoint));
@@ -870,7 +870,7 @@ function updateAttackArgsAfter(attackName, tokens) {
       const after = Array.isArray(params.argsAfterTargets) ? params.argsAfterTargets.map(String) : (typeof params.argsAfterTargets === "string" ? tokenize(params.argsAfterTargets) : []);
 
       const attackerDomain = m?.interfaces?.if?.[0]?.eth?.domain;
-      const cleanIps = extractTargetIPs(targets, attackerDomain);
+      const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
       const newArgs = [];
       if (entrypoint) newArgs.push(String(entrypoint));
@@ -1085,31 +1085,28 @@ useEffect(() => {
   // ... resto della logica esistente che popola extraText / icmp ecc.
 }, [selectedImage]);
 
-function extractTargetIPs(targets = [], attackerDomain) {
-  // targets: array di oggetti macchina (come li usi), attackerDomain: es. "lan1"
-  // ritorna array di IP (no cidr, senza duplicati)
+function extractTargetIPs(
+  targets = [],
+  attackerDomain,
+  { allowOtherDomains = true } = {}  // default: includi anche altre subnet
+) {
   const ips = [];
-
   targets.forEach((t) => {
     if (!t || !t.interfaces || !Array.isArray(t.interfaces.if)) return;
 
-    // per ciascuna interfaccia del target, prendi l'ip se la domain corrisponde
     t.interfaces.if.forEach((iface) => {
       try {
-        if (iface && iface.eth && iface.eth.domain === attackerDomain && iface.ip) {
-          // split per rimuovere il /cidr se presente
+        if (!iface || !iface.eth || !iface.ip) return;
+
+        // Se allowOtherDomains è true, non filtrare per dominio
+        const sameDomain = iface.eth.domain === attackerDomain;
+        if ((allowOtherDomains || sameDomain)) {
           const ipOnly = String(iface.ip).split('/')[0].trim();
-          if (ipRegex.test(ipOnly)) {
-            ips.push(ipOnly);
-          }
+          if (ipRegex.test(ipOnly)) ips.push(ipOnly);
         }
-      } catch (e) {
-        // ignore malformed entries
-      }
+      } catch {}
     });
   });
-
-  // dedup
   return Array.from(new Set(ips));
 }
 
@@ -1231,7 +1228,7 @@ const toggleAttack = (val) => {
 
     // stiamo caricando un attacco nuovo
     const attackerDomain = currAttacker?.interfaces?.if?.[0]?.eth?.domain;
-    const cleanIps = extractTargetIPs(targets, attackerDomain);
+    const cleanIps = extractTargetIPs(targets, attackerDomain, { allowOtherDomains: true });
 
     const attackDef = getAttackDefinition ? getAttackDefinition(val) : null;
     const scriptPath = attackDef?.script || "/usr/local/bin/script.sh";
