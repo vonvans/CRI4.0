@@ -4,7 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 #install node
 ENV NVM_DIR=/root/.nvm
-
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       curl ca-certificates gnupg uuid-runtime \
