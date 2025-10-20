@@ -64,6 +64,7 @@ export function MachineInfo({id, machine, machines, setMachines}) {
                         <Radio value="ns">Name Server</Radio>
                         <Radio value="ws">Web Server</Radio>
                         <Radio value="ngfw">NGFW Appliance</Radio>
+<Radio value="rejector">Rejector</Radio>
 <Radio value="scada">Scada controller</Radio>
 <Radio value="apg">Abstract piece generator</Radio>
 <Radio value="laser">Laser sensor</Radio>

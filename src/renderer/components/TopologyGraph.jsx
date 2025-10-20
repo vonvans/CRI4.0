@@ -71,6 +71,7 @@ function TopologyGraph({ machines }) {
       multiselect: true,
     },
     groups: {
+"rejector": { image: DIR + "rejector.png", shape: "image", },
 "scada": { image: DIR + "scada.png", shape: "image", },
 "apg": { image: DIR + "apg.png", shape: "image", },
 "laser": { image: DIR + "laser.png", shape: "image", },
