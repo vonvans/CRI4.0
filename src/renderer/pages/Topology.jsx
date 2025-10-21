@@ -12,7 +12,6 @@ import { Slider } from "@nextui-org/react";
 import TopologyGraph from "../components/TopologyGraph";
 import { useContext } from "react";
 import { NotificationContext } from "../contexts/NotificationContext";
-import { useMemo } from "react";
 
 
 function Topology() {
@@ -21,21 +20,16 @@ function Topology() {
     const [showTimer, setShowTimer] = useState(false);
     const [progress, setProgress] = useState(0);
 
-//PERSISTENZA
-    //   const [simulationRun, setSimulationRun] = useState(() => {
-//  try { return JSON.parse(localStorage.getItem('simulationRun') || 'false'); }
-//  catch { return false; }
-//});
-//const [stopSimulation, setStopSimulation] = useState(() => {
- // try { return JSON.parse(localStorage.getItem('stopSimulation') || 'false'); }
- // catch { return false; }
-//});
-
-const [simulationRun, setSimulationRun] = useState(false);
-const [stopSimulation, setStopSimulation] = useState(false);
+   const [simulationRun, setSimulationRun] = useState(() => {
+  try { return JSON.parse(localStorage.getItem('simulationRun') || 'false'); }
+  catch { return false; }
+});
+const [stopSimulation, setStopSimulation] = useState(() => {
+  try { return JSON.parse(localStorage.getItem('stopSimulation') || 'false'); }
+  catch { return false; }
+});
 
 const [showSimulationBanner, setShowSimulationBanner] = useState(false);
-
 
 
 
@@ -44,15 +38,14 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     return savedLab ? JSON.parse(savedLab) : { name: "default-lab" };
   });
 
-//PERSISTENZA 
-//  useEffect(() => {
-//  localStorage.setItem('simulationRun', JSON.stringify(simulationRun));
-//}, [simulationRun]);
 
-//useEffect(() => {
-//  localStorage.setItem('stopSimulation', JSON.stringify(stopSimulation));
-//}, [stopSimulation]);
+  useEffect(() => {
+  localStorage.setItem('simulationRun', JSON.stringify(simulationRun));
+}, [simulationRun]);
 
+useEffect(() => {
+  localStorage.setItem('stopSimulation', JSON.stringify(stopSimulation));
+}, [stopSimulation]);
 
 
     
@@ -79,25 +72,10 @@ const [showSimulationBanner, setShowSimulationBanner] = useState(false);
     
     
 
-    // se attackLoaded può essere undefined, fallback a false
-const { attackLoaded: ctxAttackLoaded = false } = useContext(NotificationContext);
-
-const attacker = useMemo(
-  () => machines.find((m) => m.type === "attacker"),
-  [machines]
-);
-
-// “attackReady” è true se o il context o l’attaccante hanno attackLoaded
-const attackReady = Boolean(attacker?.attackLoaded ?? ctxAttackLoaded);
-
-// Abilitazione del bottone
-const isAttackEnabled = Boolean(simulationRun && attackReady && !stopSimulation && !attackInProgress);
+    const { attackLoaded } = useContext(NotificationContext);
 
 
-
-
-/*    const simulateAttack = async () => {
-       if (!simulationRun || !attackReady || stopSimulation || attackInProgress) return;
+    const simulateAttack = async () => {
   const attacker = machines.find((m) => m.type === "attacker");
   console.log("simulateAttack triggered");
   console.log("attacker:", attacker);
@@ -156,83 +134,6 @@ const isAttackEnabled = Boolean(simulationRun && attackReady && !stopSimulation 
   }
   // nota: lo stato (attackInProgress/showTimer) viene chiuso dal timer sopra
 };
-*/
-
-const simulateAttack = async () => {
-  if (!simulationRun || !attackReady || stopSimulation || attackInProgress) return;
-
-  // 1) RICARICA STATO FRESCO (evita vecchi argomenti)
-  let latestMachines = [];
-  try {
-    latestMachines = JSON.parse(localStorage.getItem("machines") || "[]");
-  } catch (_) {}
-
-  // preferisci l'array fresco; se per qualche motivo è vuoto, fallback allo stato in memoria
-  const machinesNow = Array.isArray(latestMachines) && latestMachines.length ? latestMachines : machines;
-  const attackerNow = machinesNow.find((m) => m.type === "attacker");
-
-  console.log("simulateAttack triggered");
-  console.log("attacker (fresh):", attackerNow);
-
-  if (!attackerNow) {
-    console.warn("⚠️ No attacker machine found.");
-    return;
-  }
-  if (!attackerNow.attackLoaded) {
-    console.warn("⚠️ Attack not loaded on attacker.");
-    return;
-  }
-
-  // 2) usa gli ARGS come array, con fallback a string split
-  const commandArgs =
-    Array.isArray(attackerNow.attackCommandArgs) && attackerNow.attackCommandArgs.length > 0
-      ? attackerNow.attackCommandArgs
-      : (typeof attackerNow.attackCommand === "string"
-          ? attackerNow.attackCommand.trim().split(/\s+/)
-          : []);
-
-  if (!Array.isArray(commandArgs) || commandArgs.length === 0) {
-    console.warn("⚠️ Nessun comando valido da inviare al main.");
-    return;
-  }
-
-  // prepara anche la stringa (alcuni main la vogliono per logging)
-  const commandStr = commandArgs.join(" ");
-
-  console.log("✅ Launching attack args (fresh):", commandArgs);
-
-  setAttackInProgress(true);
-  setShowTimer(true);
-  setProgress(0);
-
-  let seconds = 0;
-  const interval = setInterval(() => {
-    seconds += 1;
-    setProgress((seconds / 4) * 100);
-    if (seconds >= 4) {
-      clearInterval(interval);
-      setTimeout(() => {
-        setShowTimer(false);
-        setAttackInProgress(false);
-      }, 1000);
-    }
-  }, 1000);
-
-  try {
-    await window.electron.ipcRenderer.invoke("simulate-attack", {
-      // USA LE CHIAVI CHE IL MAIN SI ASPETTA
-      containerName: attackerNow.name,      // <— se il tuo main usa "containerName"
-      container: attackerNow.name,          // <— tieni anche questa per compatibilità
-      imageName: attackerNow.attackImage,   // <— così vedrai "Image name received: …" corretto
-      commandArgs: commandArgs,             // <— ARRAY (preferito)
-      command: commandStr,                  // <— STRING (per log/retrocompatibilità)
-      targets: attackerNow.targets || [],   // <— opzionale, utile per debug lato main
-    });
-  } catch (e) {
-    console.error("Attack error", e);
-  }
-};
-
 
    /* const simulateAttack = async () => {
   const attacker = machines.find((m) => m.type === "attacker");
@@ -292,16 +193,6 @@ const simulateAttack = async () => {
   }
 };
 
-/*
- <Button 
-    isDisabled={attackInProgress || !attackLoaded || !simulationRun || stopSimulation} 
-    className={attackInProgress ? "bg-danger/50 text-white" : "bg-danger text-white"} 
-    onClick={simulateAttack}
-  >
-    {attackInProgress ? "Attack launched!" : "Simulate Attack"}
-  </Button>
-*/
-
 
 
     return(
@@ -322,41 +213,38 @@ const simulateAttack = async () => {
             <div className="grid gap-2 items-start">
   {/* Run Simulation */}
   <Button 
-  isDisabled={simulationRun}
-  className="bg-success text-white"
-  onClick={async () => {
+    isDisabled={simulationRun} 
+    className="bg-success text-white" 
+    onClick={async () => {
   setShowSimulationBanner(true);
+
   try {
-    // set ottimistico: abilita il flusso (sblocca “Simulate Attack”)
-    setSimulationRun(true);
-    setStopSimulation(false);
-
-    const res = await window.electron.ipcRenderer.invoke("run-simulation", { machines, labInfo });
-
-    // Se il main ti dice esplicitamente che NON è ok, fai rollback
-    if (res?.ok === false) {
-      setSimulationRun(false);
-    }
+    await window.electron.ipcRenderer.invoke("run-simulation", {
+      machines,
+      labInfo,
+    });
   } catch (e) {
     console.error("Run simulation error:", e);
-    setSimulationRun(false);
-    setStopSimulation(false);
-  } finally {
-    setShowSimulationBanner(false);
   }
+
+  setTimeout(() => {
+    setShowSimulationBanner(false);
+    setSimulationRun(true);
+    setStopSimulation(false);
+  }, 2000);
 }}
->
-  Run Simulation
-</Button>
+  >
+    Run Simulation
+  </Button>
 
   {/* Simulate Attack */}
-<Button
-  isDisabled={!isAttackEnabled}
-  className={isAttackEnabled ? "bg-danger text-white" : "bg-danger/40 text-white"}
-  onClick={simulateAttack}
->
-  {attackInProgress ? "Attack launched!" : "Simulate Attack"}
-</Button>  
+  <Button 
+    isDisabled={attackInProgress || !attackLoaded || !simulationRun || stopSimulation} 
+    className={attackInProgress ? "bg-danger/50 text-white" : "bg-danger text-white"} 
+    onClick={simulateAttack}
+  >
+    {attackInProgress ? "Attack launched!" : "Simulate Attack"}
+  </Button>
 
   {/* Stop Simulation */}
   {simulationRun && !stopSimulation && (

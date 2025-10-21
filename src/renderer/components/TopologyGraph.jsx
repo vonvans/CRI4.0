@@ -98,6 +98,30 @@ function TopologyGraph({machines}) {
 				image: DIR + "other.png",
 				shape: "image",
 			},
+			"scada": {
+				image: DIR + "scada.png",
+				shape: "image",
+			},
+			"plc": {
+				image: DIR + "plc.png",
+				shape: "image",
+			},
+			"conveyor": {
+				image: DIR + "conveyor.png",
+				shape: "image",
+			},
+			"laser": {
+				image: DIR + "laser.png",
+				shape: "image",
+			},
+			"rejector": {
+				image: DIR + "rejector.png",
+				shape: "image",
+			},
+			"apg": {
+				image: DIR + "apg.png",
+				shape: "image",
+			},
 			"domain": {
 				color: BLACK,
 				font: { color: "#dddddd" }

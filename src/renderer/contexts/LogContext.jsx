@@ -10,7 +10,7 @@ export function LogProvider({ children }) {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    const unsubscribe = window.electron.ipcRenderer.on('log-message', (log) => {<
+    const unsubscribe = window.electron.ipcRenderer.on('log-message', (log) => {
       setLogs((prevLogs) => [...prevLogs, log.message].slice(-1000));
     });
 
