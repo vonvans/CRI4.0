@@ -162,7 +162,29 @@ services:
     cap_add:
       - NET_ADMIN
     profiles: [kali]
+ apg:
+    build: ./apg
+    image: icr/apg
 
+  conveyor:
+    build: ./conveyor
+    image: icr/conveyor
+
+  laser:
+    build: ./laser
+    image: icr/laser
+
+  plc:
+    build: ./plc
+    image: icr/plc
+
+  rejector:
+    build: ./rejector
+    image: icr/rejector
+
+  scada:
+    build: ./scada
+    image: icr/scada
   
   
 
