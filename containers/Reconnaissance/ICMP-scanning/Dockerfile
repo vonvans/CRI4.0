@@ -8,7 +8,7 @@ WORKDIR /root
 # - script.sh (se lo usi)
 # - icmp_scan_scapy.py (lo script Scapy didattico)
 
-COPY arp_spoofing_scapy.py /usr/local/bin/arp_spoofing_scapy.py
+COPY icmp_scan_scapy.py /usr/local/bin/icmp_scan_scapy.py
 
 # installa dipendenze necessarie per Scapy e strumenti di rete
 RUN apt-get update && \

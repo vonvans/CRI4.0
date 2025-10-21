@@ -11,11 +11,9 @@ export function LogProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = window.electron.ipcRenderer.on('log-message', (log) => {
-      // Aggiungi il nuovo log alla lista, mantenendo solo gli ultimi 1000 log
       setLogs((prevLogs) => [...prevLogs, log.message].slice(-1000));
     });
 
-    // Pulisci l'iscrizione quando il componente viene smontato
     return () => {
       if (unsubscribe) {
         unsubscribe();

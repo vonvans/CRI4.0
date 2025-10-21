@@ -53,96 +53,90 @@ function TopologyGraph({ machines }) {
         max: 32,
       },
     },
-    edges: {
-      arrows: {
-        to: { enabled: false }, // Disable the arrow at the 'to' end
-        from: { enabled: false }, // Disable the arrow at the 'from' end
-      },
-      smooth: {
-        type: 'dynamic',
-      },
-      color: BLACK,
-    },
-    physics: {
-      enabled: true,
-      barnesHut: { gravitationalConstant: -1200 },
-    },
-    interaction: {
-      multiselect: true,
-    },
-    groups: {
-"rejector": { image: DIR + "rejector.png", shape: "image", },
-"scada": { image: DIR + "scada.png", shape: "image", },
-"apg": { image: DIR + "apg.png", shape: "image", },
-"laser": { image: DIR + "laser.png", shape: "image", },
-"conveyor": { image: DIR + "conveyor.png", shape: "image", },
-      plc: { 
-	image: DIR + 'plc.png', 
-	shape: 'image', 
-      },
-      attacker: {
-        image: DIR + 'attacker.png',
-        shape: 'image',
-      },
-      terminal: {
-        image: DIR + 'terminal.png',
-        shape: 'image',
-      },
-      router: {
-        image: DIR + 'router.png',
-        shape: 'image',
-      },
-      ns: {
-        image: DIR + 'nameserver.png',
-        shape: 'image',
-      },
-      ws: {
-        image: DIR + 'webserver.png',
-        shape: 'image',
-        value: 8,
-      },
-      ngfw: {
-        image: DIR + 'ngfw_appliance.png',
-        shape: 'image',
-      },
-      switch: {
-        image: DIR + 'switch.png',
-        shape: 'image',
-      },
-      controller: {
-        image: DIR + 'controller.png',
-        shape: 'image',
-      },
-      other: {
-        image: DIR + 'other.png',
-        shape: 'image',
-      },
-      domain: {
-        color: BLACK,
-        font: { color: '#dddddd' },
-      },
-      eth: {
-        color: WHITE,
-        shape: 'box',
-      },
-      'domain-ip': {
-        color: LGRAY,
-        shape: 'box',
-      },
-      ospf: {
-        color: ORANGE,
-        shape: 'box',
-      },
-      rip: {
-        color: ORANGE,
-        shape: 'box',
-      },
-      bgp: {
-        color: ORANGE,
-        shape: 'box',
-      },
-    },
-  };
+		groups: {
+			"attacker": {
+				image: DIR + "attacker.png",
+				shape: "image",
+			},
+			"terminal": {
+				image: DIR + "terminal.png",
+				shape: "image",
+			},
+			"router": {
+				image: DIR + "router.png",
+				shape: "image",
+			},
+			"ns": {
+				image: DIR + "nameserver.png",
+				shape: "image",
+			},
+			"ws": {
+				image: DIR + "webserver.png",
+				shape: "image",
+				value: 8
+			},
+			"switch": {
+				image: DIR + "switch.png",
+				shape: "image",
+			},
+			"controller": {
+				image: DIR + "controller.png",
+				shape: "image",
+			},
+			"other": {
+				image: DIR + "other.png",
+				shape: "image",
+			},
+			"scada": {
+				image: DIR + "scada.png",
+				shape: "image",
+			},
+			"plc": {
+				image: DIR + "plc.png",
+				shape: "image",
+			},
+			"conveyor": {
+				image: DIR + "conveyor.png",
+				shape: "image",
+			},
+			"laser": {
+				image: DIR + "laser.png",
+				shape: "image",
+			},
+			"rejector": {
+				image: DIR + "rejector.png",
+				shape: "image",
+			},
+			"apg": {
+				image: DIR + "apg.png",
+				shape: "image",
+			},
+			"domain": {
+				color: BLACK,
+				font: { color: "#dddddd" }
+			},
+			"eth": {
+				color: WHITE,
+				shape: "box"
+			},
+			"domain-ip": {
+				color: LGRAY,
+				shape: "box"
+			},
+			"ospf": {
+				color: ORANGE,
+				shape: "box"
+			},
+			"rip": {
+				color: ORANGE,
+				shape: "box"
+			},
+			"bgp": {
+				color: ORANGE,
+				shape: "box"
+			}
+		}
+	};
 
   const events = {
     select: function (event) {

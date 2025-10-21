@@ -140,9 +140,10 @@ function makeLabConfFile(netkit, lab) {
   //lab.file["lab.conf"] += "collectordb[0]=_collector\n";
   //lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
 
+  //PER UNIX POST MAC
 
   lab.file["lab.conf"] += "collector[bridged]=true\n";
-  lab.file["lab.conf"] += 'collector[port]="3100:3100"\n';
+  lab.file["lab.conf"] += 'collector[port]="3100:3100/tcp"\n';
   lab.file["lab.conf"] += 'collector[0]="_collector"\n';
   lab.file["lab.conf"] += "collector[image]=\"icr/collector\"\n";
   lab.file["collector.startup"] = `#!/bin/sh
@@ -151,6 +152,22 @@ function makeLabConfFile(netkit, lab) {
   echo "nameserver 8.8.8.8" > /etc/resolv.conf
   loki -config.file=/etc/loki/config.yml
   `;
+
+// PER BUG MAC
+
+//lab.file["lab.conf"] += "collector[bridged]=true\n";
+//  lab.file["lab.conf"] += 'collector[port]="3100:3100/tcp"\n';
+//  lab.file["lab.conf"] += "collector[image]=\"icr/collector\"\n";
+  //kathara lconfig -n collector --add "_collector"
+//tramite docker exec nel main, lanciare
+//ip addr add 20.0.0.254/24 dev eth1
+  //ip link set eth1 up
+
+
+
+  //flag sistema operativo mac/Windows workaround linux no 
+  //solo prime due righe e quarta
+  //quando partito, fare NEL MAIN lconfig .... e poi eseguire all'interno i due comandi ip addr ed ip link
 
   for (let machine of netkit) {
    // Nome “forzato” e sanificato per evitare slash ecc.

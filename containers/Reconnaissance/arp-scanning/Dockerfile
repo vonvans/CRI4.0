@@ -6,7 +6,7 @@ LABEL maintainer="you@example.com"
 WORKDIR /root
 
 # copia lo script (assicurati che script.sh sia nel context della build)
-COPY script.sh /usr/local/bin/script.sh
+COPY arp_scan.sh /usr/local/bin/arp_scan.sh
 
 # installa dipendenze, rende eseguibile lo script e pulisce la cache apt
 RUN apt-get update && \
