@@ -162,7 +162,7 @@ services:
     cap_add:
       - NET_ADMIN
     profiles: [kali]
- apg:
+  apg:
     build: ./apg
     image: icr/apg
 
