@@ -190,8 +190,8 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
-    entrypoint: "",
+    script: "/usr/local/bin/arp_spoofing_scapy.py",
+    entrypoint: "python3",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
