@@ -29,6 +29,19 @@ const [stopSimulation, setStopSimulation] = useState(() => {
   catch { return false; }
 });
 
+useEffect(() => {
+  const storedSimulationRun = JSON.parse(localStorage.getItem('simulationRun') || 'false');
+  const storedStopSimulation = JSON.parse(localStorage.getItem('stopSimulation') || 'false');
+
+  if (storedSimulationRun && storedStopSimulation) {
+    // Inconsistent state: simulation was running but also stopped. Reset both.
+    setSimulationRun(false);
+    setStopSimulation(false);
+    localStorage.setItem('simulationRun', 'false');
+    localStorage.setItem('stopSimulation', 'false');
+  }
+}, []);
+
 const [showSimulationBanner, setShowSimulationBanner] = useState(false);
 
 
