@@ -1,5 +1,4 @@
-version: "3"
-
+version: '3'
 services:
   collector:
     build: ./collector
@@ -12,14 +11,14 @@ services:
     build: ./collector/db
     image: icr/collector-db
     ports:
-      - "7331:7331"
-    profiles: [collector]
-
+      - 7331:7331
+    profiles:
+      - collector
   kathara-base:
     build: ./kathara-base
     image: icr/kathara-base
-    profiles: [kathara]
-
+    profiles:
+      - kathara
   mitm-arp-spoofing:
     build: ./mitm/arp-spoofing
     image: icr/mitm-arp-spoofing
@@ -162,7 +161,29 @@ services:
     cap_add:
       - NET_ADMIN
     profiles: [kali]
+  apg:
+    build: ./apg
+    image: icr/apg
 
+  conveyor:
+    build: ./conveyor
+    image: icr/conveyor
+
+  laser:
+    build: ./laser
+    image: icr/laser
+
+  plc:
+    build: ./plc
+    image: icr/plc
+
+  rejector:
+    build: ./rejector
+    image: icr/rejector
+
+  scada:
+    build: ./scada
+    image: icr/scada
   
   
 
