@@ -24,13 +24,14 @@ function Home() {
             localStorage.setItem("machines", JSON.stringify(newMachine));
         }
 
-        const loadedMachines = savedMachines ? JSON.parse(savedMachines) : [newMachine];
+        const loadedMachines = savedMachines ? JSON.parse(savedMachines) : newMachine;
 
         // Sanitize loaded machines
         if (Array.isArray(loadedMachines)) {
             return loadedMachines.map(m => ({
                 ...backboneModel, // Default values
                 ...m,            // Overwritten by saved values
+                id: m.id || uuidv4(),
                 interfaces: {    // Deep merge for interfaces to ensure safety
                     ...backboneModel.interfaces,
                     ...(m.interfaces || {})
