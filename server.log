@@ -1,0 +1,75 @@
+
+> start:server
+> cross-env TS_NODE_TRANSPILE_ONLY=true ts-node src/server/index.ts
+
+Startup: cleaning previous labs...
+Startup: removed labs directory
+Server running on port 3001
+[POST] /api/run-simulation
+[LOG] machines? false undefined
+[LOG] labInfo? undefined
+[LOG] Generating ZIP...
+attackers in input: []
+[DEBUG] Files in lab.file: [ 'collector.startup', 'collectordb.startup', 'lab.conf' ]
+[LOG] Extracting ZIP...
+[LOG] Launching Kathara...
+[LOG] Launching kathara in: /home/lorenzo/kathara-labs
+[LOG] Files present: default-lab,default-lab.zip
+[WARN] Sorry, try again.
+
+[WARN] sudo: 1 incorrect password attempt
+
+[ERROR] Failed to start (code 1): Sorry, try again.
+sudo: 1 incorrect password attempt
+
+[POST] /api/stop-simulation
+[LOG] Stopping lab with: kathara lclean -d "/home/lorenzo/kathara-labs"
+[LOG] ┌──────────────────────────────────────────────────────────────────────────────┐
+│                          Stopping Network Scenario                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+[LOG] Content removed from: /home/lorenzo/kathara-labs
+[LOG] lclean done.
+[GET] /assets/images/plc.png
+[GET] /assets/images/scada.png
+[GET] /assets/images/temperature_sensor.png
+[GET] /assets/images/fan.png
+[GET] /assets/images/attacker.png
+[GET] /assets/images/ngfw_appliance.png
+[GET] /api/logs
+[POST] /api/run-simulation
+[LOG] machines? true 6
+[LOG] [SERVER] SCADA Machine found: scada
+[LOG] [SERVER] Industrial prop: true
+[LOG] [SERVER] scadaProjectName: scada_project.fuxap(5).db
+[LOG] [SERVER] scadaProjectContent length: 120152
+[LOG] labInfo? {"name":"default-lab"}
+[LOG] Generating ZIP...
+attackers in input: [
+  {
+    name: 'attacker',
+    attackImage: 'icr/injection-crack-plc',
+    type: 'attacker'
+  }
+]
+[DEBUG] Checking password for machine plc: openplc
+[POST] /api/simulate-attack
+[LOG] [2/23/2026, 1:42:21 PM] simulate-attack request
+[LOG] Image name received: attacker
+[LOG] Raw command payload: env,USERNAMES=MattonNot-WordPress
+matt
+IanMcKellar,PASSWORDS=password
+12345
+admin
+root
+openplc,TARGET=10.0.0.12,/usr/local/bin/entrypoint.sh
+[LOG] args for docker exec: ["env","USERNAMES=MattonNot-WordPress\nmatt\nIanMcKellar","PASSWORDS=password\n12345\nadmin\nroot\nopenplc","TARGET=10.0.0.12","/usr/local/bin/entrypoint.sh"]
+[WARN] No running container found for image/name: attacker
+[POST] /api/simulate-attack
+[LOG] [2/23/2026, 1:42:41 PM] simulate-attack request
+[LOG] Image name received: attacker
+[LOG] Raw command payload: sh,-c,sudo nft delete table ip nat 2>/dev/null || true; while pgrep ettercap > /dev/null; do pkill -9 ettercap; sleep 0.5; done; pkill -f modbus_server.py || true
+[LOG] args for docker exec: ["sh","-c","sudo nft delete table ip nat 2>/dev/null || true; while pgrep ettercap > /dev/null; do pkill -9 ettercap; sleep 0.5; done; pkill -f modbus_server.py || true"]
+[WARN] No running container found for image/name: attacker
+Client connected: aHZ6mkHHymmJ-IArAAAB
+Terminal creation failed: Container not found

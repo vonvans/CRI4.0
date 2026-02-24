@@ -20,6 +20,14 @@ RUN LATEST=$(curl -s https://api.github.com/repos/asdf-vm/asdf/releases/latest \
     && tar -xf ./asdf.tar.gz -C /usr/local/bin/ \
     && rm ./asdf.tar.gz
 
+#Install UV
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+RUN uv venv
+
 ENV PATH="/root/.asdf/shims:${PATH}"
 
 # Install yq via asdf
@@ -83,3 +91,7 @@ COPY ./zeek.conf  /etc/fluent-bit/zeek.conf
 RUN apt update && apt install -y nginx-full fail2ban
 COPY ./proxy_8080.conf  /etc/nginx/sites-available/default
 COPY ./sender.conf /etc/fluent-bit/sender.conf
+
+#Install smoloki
+RUN uv tool install smoloki --with requests
+RUN echo "alias smoloki='uvx smoloki'" >> ~/.bashrc

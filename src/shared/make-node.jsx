@@ -373,44 +373,28 @@ tee /etc/fail2ban/jail.d/nginx-login-200.local > /dev/null <<__EOF__
 enabled  = true
 filter   = nginx-login-200
 logpath  = /var/log/nginx/access.log
-backend  = auto
+backend  = polling
+polltime = 0.1
 
-# Soglie
 findtime = \${FINDTIME}
 maxretry = \${MAXRETRY}
 bantime  = \${BANTIME}
 
-# Azione
-action   = %(action_mwl)s
+action = %(action_)s
+         loki
 __EOF__
-    
+
+tee /etc/fail2ban/action.d/loki.conf << __EOF__
+[Definition]
+actionstart =
+actionstop =
+actioncheck =
+actionban =  /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been banned"}'
+actionunban = /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been unbanned"}'
+__EOF__
+
 service fail2ban restart
-
-#------fluetbit
-if ! command -v fluent-bit >/dev/null 2>&1; then
-    # Fallback installation
-    sudo apt update
-    sudo apt install -y curl gpg
-    curl -fsSL https://packages.fluentbit.io/fluentbit.key | \
-      sudo gpg --dearmor -o /usr/share/keyrings/fluentbit-keyring.gpg
-    echo 'deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/debian/bookworm bookworm main' | \
-      sudo tee /etc/apt/sources.list.d/fluent-bit.list
-    sudo apt update
-    sudo apt install -y fluent-bit
-    sudo ln -s /opt/fluent-bit/bin/fluent-bit /usr/local/bin/fluent-bit
-    sudo mkdir -p /var/lib/fluent-bit
-    sudo chown $(whoami):$(whoami) /var/lib/fluent-bit
-    systemctl enable --now fluent-bit
-fi
-
-
-TEXT_FILE="/var/log/fail2ban.log"
-LOKI_IP="10.1.0.254"
-
-sudo mkdir -p /var/lib/fluent-bit/storage
-sudo chown -R root:root /var/lib/fluent-bit
-
-fluent-bit -c /etc/fluent-bit/sender.conf &
+fail2ban-client reload nginx-login-200
 `;
       }
     }

@@ -9,20 +9,11 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Fluent Bit
-RUN curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor -o /usr/share/keyrings/fluentbit-keyring.gpg && \
-    echo 'deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/debian/bookworm bookworm main' | tee /etc/apt/sources.list.d/fluent-bit.list && \
-    apt-get update && apt-get install -y fluent-bit
-
-# Setup Fluent Bit link and directories
-RUN ln -s /opt/fluent-bit/bin/fluent-bit /usr/local/bin/fluent-bit && \
-    mkdir -p /var/lib/fluent-bit && \
-    chown root:root /var/lib/fluent-bit
-
 # Clone OpenPLC Crack
 WORKDIR /opt
 RUN git clone https://github.com/CoLorenzo/openplc-crack && \
-    cd openplc-crack
+    cd openplc-crack \
+    git checkout loki
 
 # Copy configuration files
 COPY entrypoint.sh /usr/local/bin/
@@ -34,5 +25,22 @@ RUN chmod +x /usr/local/bin/entrypoint.sh && \
 #TODO: move above
 RUN apt update && apt install -y iproute2
 
+# Install smoloki
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN uv pip install requests smoloki
+RUN printf '#!/bin/sh\nexec uv run smoloki "$@"\n' > /usr/local/bin/smoloki \
+ && chmod +x /usr/local/bin/smoloki
+
+
 WORKDIR /opt/openplc-crack
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+

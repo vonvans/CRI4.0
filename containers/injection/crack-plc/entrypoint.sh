@@ -20,29 +20,20 @@ if [ -z "$TARGET" ]; then
             "$f"
         fi
     done
-
-    # Start Fluent Bit in background to be ready
-    fluent-bit -c /root/fluent-bit.conf &
-    # Keep container alive for manual exec
     tail -f /dev/null
     exit 0
 fi
 
-# Start Fluent Bit in background
-fluent-bit -c /root/fluent-bit.conf &
-
-# Ensure results.log exists and is empty
-: > /opt/openplc-crack/results.log
-
 # Change directory to ensure run.sh finds local files (fixes grep: login.html error)
 cd /opt/openplc-crack
+git checkout loki
 
 # Run the attack
 # Output to stderr (for docker logs) AND filter for SUCCESS to results.log (for Fluent Bit)
 # We use stdbuf to avoid buffering delays if available, otherwise just standard pipe
 
 echo "Starting OpenPLC/Crack on target: $TARGET"
-./run.sh "http://$TARGET:8080" 2>&1 | tee /dev/stderr >> results.log
+./run.sh "http://$TARGET:8080" "http://10.1.0.254:3100"
 
 # Keep container running after attack to allow log collection
 tail -f /dev/null
