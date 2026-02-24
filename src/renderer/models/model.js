@@ -15,7 +15,6 @@ export const backboneModel = {
   attackImage: "",
   attackCommand: "",
   attackConfig: {},
-  bridged: false,
   targets: [],
   routingSoftware: "frr",
   interfaces: {

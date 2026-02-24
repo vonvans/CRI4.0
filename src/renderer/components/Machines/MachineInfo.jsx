@@ -6,7 +6,6 @@
 import { useState, useEffect } from "react";
 import { RadioGroup, Radio } from "@nextui-org/radio";
 import { Input } from "@nextui-org/input";
-import { Switch } from "@nextui-org/switch";
 import { Accordion, AccordionItem } from "@nextui-org/react";
 
 export function MachineInfo({ id, machine, machines, setMachines }) {
@@ -45,18 +44,6 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
               })
             }
           />
-          <div className="mt-2">
-            <Switch
-              isSelected={!!machine.bridged}
-              onValueChange={(val) =>
-                setMachines((ms) =>
-                  ms.map((m) => (m.id === machine.id ? { ...m, bridged: val } : m))
-                )
-              }
-            >
-              Online (bridged)
-            </Switch>
-          </div>
         </div>
 
         <div className="row-span-7">
