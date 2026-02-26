@@ -474,5 +474,13 @@ export const attacksModel = [
     attackLoaded: false,
     image: "",
     isImage: false,
+  },
+  {
+    name: "modbustcp-recon",
+    displayName: "Modbus-TCP Recon",
+    category: "Reconnaissance",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
   }
 ]

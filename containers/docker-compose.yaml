@@ -208,3 +208,10 @@ services:
     image: icr/ngfw
     cap_add:
       - NET_ADMIN
+  Reconnaissance-modbustcp-recon:
+    build: ./Reconnaissance/modbustcp-recon
+    image: icr/reconnaissance-modbustcp-recon
+    cap_add:
+      - NET_ADMIN
+    profiles:
+      - kali
