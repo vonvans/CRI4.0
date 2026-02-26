@@ -101,6 +101,10 @@ function LogInsightsPage() {
               // Not a JSON string or doesn't have .log property
             }
 
+            if (typeof message === "string" && message.startsWith("message=")) {
+              message = message.slice(8);
+            }
+
             return {
               id: `${ts}-${Math.random()}`,
               timestamp: new Date(ms),
