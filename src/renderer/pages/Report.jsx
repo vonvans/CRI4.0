@@ -21,6 +21,11 @@ function LogInsightsPage() {
   const [customTime, setCustomTime] = useState({ start: "", end: "" });
   const [isFetching, setIsFetching] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [expandedRow, setExpandedRow] = useState(null);
+
+  const toggleRow = (id) => {
+    setExpandedRow(expandedRow === id ? null : id);
+  };
 
   // Escapes special characters for regex in LogQL
   const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -364,25 +369,40 @@ function LogInsightsPage() {
           <tbody className="divide-y divide-gray-700">
             {currentLogs.length > 0 ? (
               currentLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-2 00">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {log.hostname}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityColors[log.severity] || "bg-gray-600"
-                        }`}
-                    >
-                      {log.severity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-300 max-w-sm truncate">
-                    {log.message}
-                  </td>
-                </tr>
+                <React.Fragment key={log.id}>
+                  <tr
+                    className="hover:bg-gray-700 cursor-pointer transition-colors"
+                    onClick={() => toggleRow(log.id)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {log.hostname}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityColors[log.severity] || "bg-gray-600"
+                          }`}
+                      >
+                        {log.severity}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-300 max-w-sm truncate">
+                      {log.message}
+                    </td>
+                  </tr>
+                  {expandedRow === log.id && (
+                    <tr className="bg-gray-750 border-b border-gray-700">
+                      <td
+                        colSpan="4"
+                        className="px-6 py-4 text-sm text-gray-200 whitespace-pre-wrap break-words bg-gray-800/50"
+                      >
+                        {log.message}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))
             ) : (
               <tr>
