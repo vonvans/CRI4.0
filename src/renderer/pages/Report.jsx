@@ -398,7 +398,11 @@ function LogInsightsPage() {
                         colSpan="4"
                         className="px-6 py-4 text-sm text-gray-200 whitespace-pre-wrap break-words bg-gray-800/50"
                       >
-                        {log.message}
+                        {typeof log.message === "string"
+                          ? log.message.split(/\\n|\n/).map((line, i) => (
+                            <div key={i}>{line}</div>
+                          ))
+                          : log.message}
                       </td>
                     </tr>
                   )}
