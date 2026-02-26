@@ -23,6 +23,20 @@ function Reconnaissance({ attacker, attacks, isLoading, machines, setMachines, h
   const { attackLoaded, setAttackLoaded } = useContext(NotificationContext);
   const [targets, setTargets] = useState(attacker?.targets || []);
 
+  const updateMachineData = (updates) => {
+    setMachines(prevMachines => prevMachines.map(m => {
+      if (m.type === "attacker") {
+        return { ...m, ...updates };
+      }
+      return m;
+    }));
+  };
+
+  const handleTargetsChange = (val) => {
+    setTargets(val);
+    updateMachineData({ targets: val });
+  };
+
   console.log(attacker?.attackImage)
 
   // textbox generale per params (argsAfterTargets)
@@ -1126,7 +1140,7 @@ function Reconnaissance({ attacker, attacks, isLoading, machines, setMachines, h
         if (m.type === "attacker") {
           return {
             ...m,
-            targets: [],
+            targets: m.targets || [], // Mantieni i target correnti o array vuoto
             attackLoaded: false,
             attackImage: "",
             attackCommand: "",
@@ -1203,7 +1217,7 @@ function Reconnaissance({ attacker, attacks, isLoading, machines, setMachines, h
       machinesReset[attackerIndex] = {
         ...machinesReset[attackerIndex],
         name: val,
-        targets: cleanIps,
+        targets: targets, // Preserve original machine object targets for the UI
         attackLoaded: true,
         attackImage: val,
         attackCommandArgs: args,
@@ -1245,7 +1259,7 @@ function Reconnaissance({ attacker, attacks, isLoading, machines, setMachines, h
       </div>
       <div className="flex-grow">
         <div className="grid gap-2">
-          <MachineSelector machines={machines} setTargets={setTargets} attacker={attacker} />
+          <MachineSelector machines={machines} setTargets={handleTargetsChange} attacker={attacker} />
           <AttackSelector type="Reconnaissance" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh} />
         </div>
       </div>

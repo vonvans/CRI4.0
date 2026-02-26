@@ -19,6 +19,21 @@ function DOS({ attacker, attacks, isLoading, machines, setMachines, handleRefres
   const [selectedImage, setSelectedImage] = useState(attacker?.attackImage || "");
   const { attackLoaded, setAttackLoaded } = useContext(NotificationContext);
   const [targets, setTargets] = useState(attacker?.targets || []);
+
+  const updateMachineData = (updates) => {
+    setMachines(prevMachines => prevMachines.map(m => {
+      if (m.type === "attacker") {
+        return { ...m, ...updates };
+      }
+      return m;
+    }));
+  };
+
+  const handleTargetsChange = (val) => {
+    setTargets(val);
+    updateMachineData({ targets: val });
+  };
+
   const [extraText, setExtraText] = useState("");
 
   // --- New states for icmp-ping params ---
@@ -617,7 +632,7 @@ function DOS({ attacker, attacks, isLoading, machines, setMachines, handleRefres
         if (m.type === "attacker") {
           return {
             ...m,
-            targets: [],
+            targets: m.targets || [], // Mantieni i target
             attackLoaded: false,
             attackImage: "",
             attackCommand: "",
@@ -713,7 +728,7 @@ function DOS({ attacker, attacks, isLoading, machines, setMachines, handleRefres
       machinesReset[attackerIndex] = {
         ...machinesReset[attackerIndex],
         name: val,
-        targets: cleanIps,
+        targets: targets, // Preserve original machine object targets for the UI
         attackLoaded: true,
         attackImage: val,
         attackCommandArgs: args,
@@ -746,7 +761,7 @@ function DOS({ attacker, attacks, isLoading, machines, setMachines, handleRefres
 
       <div className="flex-grow">
         <div className="grid gap-2">
-          <MachineSelector machines={machines} setTargets={setTargets} attacker={attacker} />
+          <MachineSelector machines={machines} setTargets={handleTargetsChange} attacker={attacker} />
           <AttackSelector type="dos" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh} />
         </div>
       </div>

@@ -18,9 +18,22 @@ function MachineSelector({ machines, attacker, setTargets, view, onViewChange })
   };
 
   const hasSameDomain = (m1, m2) => {
-    const m1Domains = m1.interfaces.if.map((i) => i.eth.domain);
-    const m2Domains = m2.interfaces.if.map((i) => i.eth.domain);
-    return m1Domains.some((d) => m2Domains.includes(d));
+    try {
+      // In CRI4 or smoloki model, ifaces are usually in m.interfaces or m.interfaces.if
+      const getDomains = (m) => {
+        if (!m || !m.interfaces) return [];
+        const ifaces = Array.isArray(m.interfaces) ? m.interfaces : (m.interfaces.if || []);
+        return ifaces.map(i => i?.eth?.domain).filter(Boolean);
+      };
+
+      const m1Domains = getDomains(m1);
+      const m2Domains = getDomains(m2);
+
+      return m1Domains.some((d) => m2Domains.includes(d));
+    } catch (e) {
+      console.error("Error checking domains:", e);
+      return false;
+    }
   };
 
   const selectedKeys = attacker.targets ? attacker.targets.map((t) => t.name) : [];
