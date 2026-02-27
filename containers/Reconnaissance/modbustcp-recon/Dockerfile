@@ -1,6 +1,5 @@
 FROM debian:trixie
 WORKDIR /root
-COPY script.sh /root
 ENTRYPOINT ["bash"]
 
 RUN apt update && apt install -y git tcpdump
@@ -26,4 +25,23 @@ mv ModTester /opt/ && \
 echo "alias modtester='python2.7 /opt/ModTester/modTester.py'" >> ~/.bashrc
 
 #TODO: move up
-RUN apt install -y iproute2
+RUN apt install -y iproute2 jq
+
+
+# Install smoloki
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN uv pip install requests smoloki
+RUN printf '#!/bin/sh\nexec uv run smoloki "$@"\n' > /usr/local/bin/smoloki \
+ && chmod +x /usr/local/bin/smoloki
+
+COPY script.sh /usr/local/bin/script.sh
+RUN chmod 777 /usr/local/bin/script.sh
