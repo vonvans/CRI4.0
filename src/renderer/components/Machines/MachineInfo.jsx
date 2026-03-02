@@ -151,26 +151,7 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
                 <Radio value="other">Other</Radio>
               </RadioGroup>
 
-              {machine.type === "other" && (
-                <div className="mt-2">
-                  <Input
-                    type="text"
-                    label="Image Name"
-                    variant="underlined"
-                    placeholder="example p4"
-                    value={machine.other?.image ?? ""}
-                    onValueChange={(value) =>
-                      handleChange(value, {
-                        ...machine,
-                        other: {
-                          ...(machine.other ?? {}),
-                          image: value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-              )}
+
             </AccordionItem>
           </Accordion>
         </div>

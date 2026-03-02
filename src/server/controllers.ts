@@ -356,14 +356,27 @@ export const runSimulation = async (req: Request, res: Response) => {
             sendLog('log', `📂 Launching kathara in: ${LABS_DIR}`);
             sendLog('log', `📄 Files present: ${fs.readdirSync(LABS_DIR)}`);
 
-            // Construct command with password piped to sudo
-            // Spawn the process
-            const childVal = spawn('sudo', ['-S', 'kathara', 'lstart', '--privileged', '--noterminals'], {
+            // If a sudo password is provided, run privileged (needed for MITM/injection).
+            // Otherwise run kathara directly so plain labs (ubuntu, archlinux, custom images)
+            // don't require root and don't fail with a bad/empty password.
+            let spawnCmd: string;
+            let spawnArgs: string[];
+            if (sudoPassword) {
+                spawnCmd = 'sudo';
+                spawnArgs = ['-S', 'kathara', 'lstart', '--privileged', '--noterminals'];
+            } else {
+                spawnCmd = 'kathara';
+                spawnArgs = ['lstart', '--noterminals'];
+            }
+
+            sendLog('log', `▶️ Running: ${spawnCmd} ${spawnArgs.join(' ')}`);
+
+            const childVal = spawn(spawnCmd, spawnArgs, {
                 cwd: LABS_DIR,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
 
-            // Write password to stdin
+            // Write password to stdin only when using sudo
             if (sudoPassword) {
                 childVal.stdin.write(sudoPassword + '\n');
             }
@@ -392,7 +405,9 @@ export const runSimulation = async (req: Request, res: Response) => {
                     sendLog('log', "✅ Lab started.");
                     resolve(stdoutData.trim());
                 } else {
-                    const errorMessage = `❌ Failed to start (code ${code}): ${stderrData}`;
+                    // Kathara writes most output to stdout, not stderr — include both
+                    const combined = [stdoutData, stderrData].filter(Boolean).join('\n').trim();
+                    const errorMessage = `❌ Failed to start (code ${code}): ${combined}`;
                     sendLog('error', errorMessage);
                     reject(errorMessage);
                 }

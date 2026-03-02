@@ -27,8 +27,7 @@ export default function PasswordModal({ isOpen, onClose, onSubmit }) {
                         <ModalHeader className="flex flex-col gap-1">Sudo Password Required</ModalHeader>
                         <ModalBody>
                             <p className="text-sm text-default-500">
-                                Kathara requires root privileges to configure network interfaces.
-                                Please enter your sudo password to proceed.
+                                Enter your sudo password to start Kathara in privileged mode (required for MITM/injection attacks). Leave blank to start without root privileges (works for most custom images).
                             </p>
                             <Input
                                 autoFocus

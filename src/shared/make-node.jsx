@@ -107,6 +107,30 @@ function makeStartupFiles(netkit, lab) {
     }
     const body = (userScript || "").trim();
 
+    // "other" machines can be any image (archlinux, alpine, custom, …)
+    // Use a minimal POSIX sh script without assumptions about the image's tools.
+    if (machine.type === "other") {
+      let otherScript = "#!/bin/sh\n\n";
+      // Best-effort: try to configure DNS and bring up interfaces, ignore failures
+      otherScript += "echo 'nameserver 8.8.8.8' > /etc/resolv.conf 2>/dev/null || true\n";
+      otherScript += `ip addr add ${eth0Ip} dev eth0 2>/dev/null || true\n`;
+      otherScript += "ip link set eth0 up 2>/dev/null || true\n";
+      if (machine.interfaces && Array.isArray(machine.interfaces.if)) {
+        for (const iface of machine.interfaces.if) {
+          if (iface && iface.eth && iface.eth.number >= 1 && typeof iface.ip === "string" && iface.ip.trim() !== "") {
+            const interfaceNumber = iface.eth.number;
+            let ipAddress = String(iface.ip).trim();
+            if (!ipAddress.includes("/")) ipAddress += "/24";
+            otherScript += `ip addr add ${ipAddress} dev eth${interfaceNumber} 2>/dev/null || true\n`;
+            otherScript += `ip link set eth${interfaceNumber} up 2>/dev/null || true\n`;
+          }
+        }
+      }
+      if (body) otherScript += "\n" + body + "\n";
+      lab.file[`${machineName}.startup`] = otherScript;
+      continue;
+    }
+
     if (machine.type === "tls_termination_proxy") {
       const { in_addr = "0.0.0.0:50000", out_addr = "10.1.0.2:50001", verify = "0" } = machine.tls || {};
       const tlsScript = `
@@ -322,6 +346,9 @@ function makeLabConfFile(netkit, lab) {
     if (machine.type == "terminal" || machine.type == "ws" || machine.type == "ns") {
       //lab.file["lab.conf"] += `${machine.name}[image]=icr/kathara-base`;
       lab.file["lab.conf"] += `${machineName}[image]=icr/kathara-base`;
+    }
+    if (machine.type == "other" && machine.other && machine.other.image && machine.other.image !== "") {
+      lab.file["lab.conf"] += `${machineName}[image]="${machine.other.image}"`;
     }
     if (machine.type == "ngfw") {
       lab.file["lab.conf"] += `${machineName}[image]=icr/ngfw`;
