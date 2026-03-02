@@ -25,7 +25,7 @@ const BLACK = '#2B1B17';
 import { api } from '../api';
 const DIR = api.assetsUrl;
 
-function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs }) {
+function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulationRun }) {
 	const [ifNameAt, setIfNameAt] = useState({ checked: false });
 	const [ifOspfCost, setIfOspfCost] = useState({ checked: false });
 	const [routingLabel, setRoutingLabel] = useState({ checked: false });
@@ -165,6 +165,7 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs }) {
 			var { nodes, edges } = event;
 		},
 		oncontext: function (event) {
+			if (!simulationRun) return;
 			const { nodes } = event;
 			if (nodes.length > 0) {
 				event.event.preventDefault();

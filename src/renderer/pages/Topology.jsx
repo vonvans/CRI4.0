@@ -250,6 +250,7 @@ function Topology() {
               <div className="h-full">
                 <TopologyGraph
                   machines={machines}
+                  simulationRun={simulationRun}
                   onOpenTerminal={(nodeId) => {
                     setTerminalNode(nodeId);
                     setTerminalModalOpen(true);
