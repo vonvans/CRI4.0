@@ -18,6 +18,7 @@ import Reconnaissance from "../components/Attacks/Reconnaissance"
 import MITM from "../components/Attacks/MITM"
 import Injection from "../components/Attacks/Injection"
 import Sniffing from "../components/Attacks/Sniffing";
+import Industroyer2 from "../components/Attacks/Industroyer"
 
 function Attack() {
     const [machines, setMachines] = useState(() => {
@@ -29,7 +30,7 @@ function Attack() {
       }, [machines]);
     const [stepStatus, setStepStatus] = useState(true)
 
-    const attacker = machines.filter((m) => m.type == "attacker")[0]
+    const attacker = machines.filter((m) => m.type == "attacker" || m.type == "source")[0]
 
     const [refresh, setRefresh] = useState(false);
     const [attacks, isLoading] = useAttacks(refresh);
@@ -68,6 +69,9 @@ function Attack() {
                             </Tab>
                             <Tab title="Sniffing" className="grid gap-2 w-full">
                                 <Sniffing attacker={attacker} attacks={attacks} isLoading={isLoading} machines={machines} setMachines={setMachines} handleRefresh={handleRefresh}/>
+                            </Tab>
+                            <Tab title="Industroyer" className="grid gap-2 w-full">
+        		    	<Industroyer2 attacker={attacker} attacks={attacks} isLoading={isLoading} machines={machines} setMachines={setMachines} handleRefresh={handleRefresh}/>       
                             </Tab>
                             <Tab title="Other" className="grid gap-2 w-full">
                                 <Card className="h-full">

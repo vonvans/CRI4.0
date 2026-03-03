@@ -138,7 +138,7 @@ useEffect(() => {
 
   try {
     await window.electron.ipcRenderer.invoke("simulate-attack", {
-      container: attacker.name,
+      container: attacker.attackImage,
       command: commandArgs, // INVIO come ARRAY di argomenti
     });
   } catch (e) {

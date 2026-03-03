@@ -29,8 +29,10 @@ function makeMachineFolders(netkit, lab) {
 }
 
 function makeStartupFiles(netkit, lab) {
+	
 	lab.file["collector.startup"] = "";
 	lab.file["collectordb.startup"] = "";
+	
 	for (let machine of netkit) {
 if(machine.type == "rejector"){ lab.file["lab.conf"] += machine.name + "[image]=icr/rejector"; }
 if(machine.type == "scada"){ lab.file["lab.conf"] += machine.name + "[image]=icr/scada"; }
@@ -38,6 +40,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "")
 			lab.file[machine.name + ".startup"] = "";
 	}
@@ -67,7 +71,7 @@ function makeLabInfo(info, lab) {
 function makeLabConfFile(netkit, lab) {
 	if (!lab.file["lab.conf"])
 		lab.file["lab.conf"] = "";
-
+	
 	lab.file["lab.conf"] += "collector[bridged]=true\n";
 	lab.file["lab.conf"] += "collector[port]=\"1337:80\"\n";
 	// lab.file["lab.conf"] += "collector[0]=_collector\n";
@@ -79,7 +83,7 @@ function makeLabConfFile(netkit, lab) {
 	lab.file["lab.conf"] += "collector[image]=icr/collector\n";
 	lab.file["lab.conf"] += "collectordb[0]=_collector\n";
 	lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
-
+	
 	for (let machine of netkit) {
 if(machine.type == "rejector"){ lab.file["lab.conf"] += machine.name + "[image]=icr/rejector"; }
 if(machine.type == "scada"){ lab.file["lab.conf"] += machine.name + "[image]=icr/scada"; }
@@ -87,6 +91,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.bridged) {
 			lab.file["lab.conf"] += `${machine.name}[bridged]=true\n`;
 		}
@@ -98,7 +104,9 @@ if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/p
 				lab.file["lab.conf"] += machine.name + "[" + machineInterface.eth.number + "]=" + machineInterface.eth.domain + "\n";
 			}
 		}
+		
 		lab.file["lab.conf"] += machine.name + "[" + (machine.interfaces.if[machine.interfaces.if.length - 1].eth.number + 1) + "]=_collector\n";
+		
 		if(machine.type == "router"){
 			if(machine.routingSoftware == "frr"){
 				lab.file["lab.conf"] += machine.name + "[image]=kathara/frr";
@@ -147,6 +155,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "terminal" && machine.pc.dns && machine.pc.dns != "-") {
 			lab.folders.push(machine.name + "/etc");
 			lab.file[machine.name + "/etc/resolv.conf"] = "nameserver " + machine.pc.dns + "\n";
@@ -162,6 +172,9 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+
 		if (machine.name && machine.name != "" && machine.type == "attacker" && machine.pc.dns && machine.pc.dns != "-") {
 			lab.folders.push(machine.name + "/etc");
 			lab.file[machine.name + "/etc/resolv.conf"] = "nameserver " + machine.pc.dns + "\n";
@@ -486,6 +499,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "ws") {
 			if (machine.ws.userdir == true) {
 				lab.folders.push(machine.name + "/var/www/html");
@@ -519,14 +534,17 @@ function makeStaticRouting(netkit, lab){
 
 	let collector_host = availableIPs.shift();
 	let collector_db = availableIPs.shift();
-
+	
+	
 	//lab.file["collector.startup"] += "ip address add "+ collector_host + "/" + availableSubnet.split("/")[1] +" dev eth0\n";
 	lab.file["collector.startup"] += "COLLECTORDB_HOST="+ collector_db +" /app/collector\n";
 	lab.file["collectordb.startup"] += "ip address add "+ collector_db + "/" + availableSubnet.split("/")[1] +" dev eth0\n";
-
+	
+	
 	let switchCounter = 2;
 	for(let machine of netkit){
 		if (machine.name && machine.name != "") {
+			const isNefics = ["load", "transmission"].includes(machine.type);
 			for (let machineInterface of machine.interfaces.if) {
 				if (machineInterface.eth.number == 0) {
 					if (machine.type == "switch") {
@@ -536,14 +554,38 @@ function makeStaticRouting(netkit, lab){
 					}
 				}
 				if (machineInterface.eth.domain && machineInterface.eth.domain != "" && machineInterface.ip && machineInterface.ip != "") {
-					lab.file[machine.name + ".startup"] += "ip address add "+machineInterface.ip+" dev eth" + machineInterface.eth.number+"\n";
+					if (isNefics) {
+						lab.file[machine.name + ".startup"] += "ip address add " + machineInterface.ip + " brd + dev eth" + machineInterface.eth.number+"\n";
+						lab.file[machine.name + ".startup"] += "ip link set eth" + machineInterface.eth.number + " up\n";
+					} else {
+						lab.file[machine.name + ".startup"] += "ip address add "+machineInterface.ip+" dev eth" + machineInterface.eth.number+"\n";
+					}
 				}
 			}
-
+			
+			if (!isNefics) {
 			lab.file[machine.name + ".startup"] += "ip address add "+ availableIPs.shift() + "/" + availableSubnet.split("/")[1] +" dev eth" + (machine.interfaces.if[machine.interfaces.if.length - 1].eth.number + 1) +"\n";
 			if (machine.name != "attacker")
 				lab.file[machine.name + ".startup"] += "COLLECTOR_HOST="+ collector_host +" /bin/bash /root/collector_client.sh &\n";
-
+			} else {
+				availableIPs.shift();
+				lab.file[machine.name + ".startup"] += "export PYTHONPATH=/app\ncd /app\nsleep 5\n";
+				let config = "";
+				let logfile = "";
+				if(machine.type === "attacker") {
+					config = '{"module":"simplepowergrid","device":"Source","handler":"RTUHandler","guid":1,"in":[],"out":[2],"parameters":{"voltage":526315.79}}';
+					logfile = '/shared/source.log';
+				} else if (machine.type === "load") {
+					config = '{"module":"simplepowergrid","device":"Load","handler":"RTUHandler","guid":3,"in":[2],"out":[],"parameters":{"load": 12.50}}';
+					logfile = '/shared/load.log';
+				} else if (machine.type === "transmission") {
+					config = '{"module":"simplepowergrid","device":"Transmission","handler":"RTUHandler","guid":2,"in":[1],"out":[3],"parameters":{"state":7, "loads":[0.394737, 0.394737, 0.394737]}}';
+					logfile = '/shared/transmission.log';
+				}
+				const comandoNEFICS = `python3 -u launcher_cri.py -C '${config}' > '${logfile}' 2>&1 &`;
+				lab.file[machine.name + ".startup"] += `\n${comandoNEFICS}\n`;
+			}
+			
 			for (let gateway of machine.gateways.gw) {
 				if (gateway.gw && gateway.gw != "") {
 					if (gateway.route == "") {
@@ -569,6 +611,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "other" && machine.other.image) {
 			lab.file["lab.conf"] += machine.name + '[image]="' + machine.other.image + '"\n';
 			for (let file of machine.other.files) {
@@ -596,6 +640,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "ns") {
 			lab.file[machine.name + ".startup"] += "systemctl start named\n";
 			lab.folders.push(machine.name + "/etc/bind");
@@ -622,6 +668,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 			if (machine.name && machine.name != "" && machine.type == "ns") {
 				lab.file[machine.name + "/etc/bind/db.root"] = "";
 				if (machine.ns.authority && machine.ns.zone == ".") {
@@ -646,6 +694,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 			if (machine.name && machine.name != "" && machine.type == "ns" && machine.ns.authority) {
 				authority[machine.ns.zone] = machine;
 				if (machine.ns.zone != ".") {
@@ -662,6 +712,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 			if (machine.name && machine.name != "") {
 				for (let f in machine.interfaces.if) {
 					let ip;
@@ -735,6 +787,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "switch") {
 			lab.file["lab.conf"] += machine.name + '[image]="kathara/sdn"\n';
 			lab.file[machine.name + ".startup"] +=
@@ -764,6 +818,8 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if(machine.type == "load"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
+if(machine.type == "transmission"){ lab.file["lab.conf"] += machine.name + "[image]=icr/nefics"; }
 		if (machine.name && machine.name != "" && machine.type == "controller") {
 			lab.file["lab.conf"] += machine.name + '[image]="kathara/sdn"\n';
 			isSDN = true;

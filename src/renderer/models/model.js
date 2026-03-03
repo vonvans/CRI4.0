@@ -453,5 +453,18 @@ export const attacksModel = [
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
+  },
+  {
+    name: "industroyer2",
+    displayName: "Industroyer2",
+    category: "industroyer",
+    attackLoaded: false,
+    image: "icr/industroyer-industroyer2",
+    isImage: true, 
+    script: "/app/commander_cri.py",
+    parameters: {
+        argsBeforeTargets: [],
+        argsAfterTargets: []
+    }
   }
 ]
