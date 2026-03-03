@@ -45,7 +45,10 @@ function makeStartupFiles(netkit, lab) {
   for (let machine of netkit) {
     const rawName = machine.type === "attacker" ? "attacker" : machine.name;
     const machineName = String(rawName || "node").replace(/[^\w.-]/g, "_");
-
+    
+    const isNefics = ["source", "load", "transmission"].includes(machine.type);
+    const isIndustroyer = machine.type === "attacker" && machine.attackImage?.includes("industroyer");
+    
     // prendi lo script dal nuovo campo, fallback al vecchio
     const userScript =
       (machine.scripts && typeof machine.scripts.startup === "string"
@@ -87,15 +90,34 @@ function makeStartupFiles(netkit, lab) {
 
       // fallback statico se non troviamo nulla
       const finalIp = ipRaw && ipRaw.length > 0 ? ipRaw : "192.168.10.100/24";
-
+      
+      const broadcast = (isNefics || isIndustroyer) ? " brd +" : "";
+      
       netcfg = `
 # Configurazione rete aggiunta automaticamente (saltata per collector)
 # Usato per macchina: ${machineName}
 # Indirizzo IP selezionato: ${finalIp}
-ip addr add "${finalIp}" dev eth0
+ip addr add "${finalIp}"${broadcast} dev eth0
 ip link set eth0 up
 
 `;
+	if (isNefics || isIndustroyer) {
+		netcfg += `\n# Setup NEFICS\nexport PYTHONPATH=/app\ncd /app\nsleep 5\n`;
+		
+		let config = "";
+		let logfile = "";
+		if(machine.type === "attacker") {
+			config = '{"module":"simplepowergrid","device":"Source","handler":"RTUHandler","guid":1,"in":[],"out":[2],"parameters":{"voltage":526315.79}}';
+			logfile = '/shared/source.log';
+		} else if (machine.type === "load") {
+			config = '{"module":"simplepowergrid","device":"Load","handler":"RTUHandler","guid":3,"in":[2],"out":[],"parameters":{"load": 12.50}}';
+			logfile = '/shared/load.log';
+		} else if (machine.type === "transmission") {
+			config = '{"module":"simplepowergrid","device":"Transmission","handler":"RTUHandler","guid":2,"in":[1],"out":[3],"parameters":{"state":7, "loads":[0.394737, 0.394737, 0.394737]}}';
+			logfile = '/shared/transmission.log';
+		}
+		netcfg += `python3 -u launcher_cri.py -C '${config}' > '${logfile}' 2>&1 &`;
+      }
     } else {
       // (opzionale) se vuoi un commento esplicito per i collector
       netcfg = `
@@ -141,7 +163,6 @@ function makeLabConfFile(netkit, lab) {
   //lab.file["lab.conf"] += "collectordb[image]=icr/collector-db\n";
 
   //PER UNIX POST MAC
-
   lab.file["lab.conf"] += "collector[bridged]=true\n";
   lab.file["lab.conf"] += 'collector[port]="3100:3100/tcp"\n';
   lab.file["lab.conf"] += 'collector[0]="_collector"\n';
@@ -152,7 +173,6 @@ function makeLabConfFile(netkit, lab) {
   echo "nameserver 8.8.8.8" > /etc/resolv.conf
   loki -config.file=/etc/loki/config.yml
   `;
-
 // PER BUG MAC
 
 //lab.file["lab.conf"] += "collector[bridged]=true\n";
@@ -189,12 +209,13 @@ function makeLabConfFile(netkit, lab) {
         lab.file["lab.conf"] += `${machineName}[${machineInterface.eth.number}]=${machineInterface.eth.domain}\n`;
       }
     }
+    
     // aggiunge l'interfaccia _collector come ultima
     const lastIndex = machine.interfaces.if[machine.interfaces.if.length - 1]?.eth?.number ?? -1;
     //lab.file["lab.conf"] += `${machine.name}[${lastIndex + 1}]=_collector\n`;
     lab.file["lab.conf"] += `${machineName}[${lastIndex + 1}]=_collector\n`;
     lab.file["lab.conf"] += `${machineName}[bridged]=true\n`;
-
+  
     // image per tipo
 if(machine.type == "rejector"){ lab.file["lab.conf"] += machine.name + "[image]=icr/rejector"; }
 if(machine.type == "scada"){ lab.file["lab.conf"] += machine.name + "[image]=icr/scada"; }
@@ -202,6 +223,12 @@ if(machine.type == "apg"){ lab.file["lab.conf"] += machine.name + "[image]=icr/a
 if(machine.type == "laser"){ lab.file["lab.conf"] += machine.name + "[image]=icr/laser"; }
 if(machine.type == "conveyor"){ lab.file["lab.conf"] += machine.name + "[image]=icr/conveyor"; }
 if(machine.type == "plc"){ lab.file["lab.conf"] += machine.name + "[image]=icr/plc"; }
+if (machine.type == "load") {
+        lab.file["lab.conf"] += `${machineName}[image]=icr/nefics` ;
+    }
+    if (machine.type == "transmission") {
+        lab.file["lab.conf"] += `${machineName}[image]=icr/nefics` ;
+    }
     if (machine.type == "router") {
       if (machine.routingSoftware == "frr") {
         //lab.file["lab.conf"] += `${machine.name}[image]=kathara/frr`;
