@@ -184,6 +184,15 @@ services:
   scada:
     build: ./scada
     image: icr/scada
+    
+  load:
+    build: ./nefics/load
+    image: icr/nefics
   
-  
-
+  transmission:
+    build: ./nefics/transmission
+    image: icr/nefics
+   
+  industroyer-industroyer2:
+    build: ./nefics/source
+    image: icr/industroyer-industroyer2

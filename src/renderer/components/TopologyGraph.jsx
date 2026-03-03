@@ -134,6 +134,16 @@ function TopologyGraph({ machines }) {
 			"bgp": {
 				color: ORANGE,
 				shape: "box"
+			},
+			"load": {
+				image: DIR + "load.png",
+				shape: "image",
+				size: 50,
+			},
+			"transmission": {
+				image: DIR + "transmission.png",
+				shape: "image",
+				size: 50,
 			}
 		}
 	};

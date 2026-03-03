@@ -136,6 +136,8 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
                 <Radio value="laser">Laser sensor</Radio>
                 <Radio value="conveyor">Conveyor</Radio>
                 <Radio value="plc">PLC</Radio>
+                <Radio value="load">Load</Radio>
+                <Radio value="transmission">Transmission</Radio>
               </RadioGroup>
             </AccordionItem>
 
