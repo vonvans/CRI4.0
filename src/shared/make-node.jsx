@@ -321,6 +321,7 @@ function makeLabConfFile(netkit, lab) {
     //lab.file["lab.conf"] += `${machine.name}[${lastIndex + 1}]=_collector\n`;
     lab.file["lab.conf"] += `${machineName}[0]=_collector\n`;
     lab.file["lab.conf"] += `${machineName}[bridged]=true\n`;
+    lab.file["lab.conf"] += `${machineName}[volume]="/lib/modules|/lib/modules|ro"\n`;
 
     // image per tipo
     if (machine.type == "engine") { lab.file["lab.conf"] += machine.name + "[image]=icr/engine"; }
