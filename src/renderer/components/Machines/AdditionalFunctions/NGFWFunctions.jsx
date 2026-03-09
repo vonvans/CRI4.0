@@ -43,6 +43,24 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
         );
     }
 
+    function handleNgfwChange(field, value) {
+        setMachines(() =>
+            machines.map((m) => {
+                if (m.id === machine.id) {
+                    return {
+                        ...m,
+                        ngfw: {
+                            ...(m.ngfw || {}),
+                            [field]: value,
+                        },
+                    };
+                } else {
+                    return m;
+                }
+            })
+        );
+    }
+
     function handleWafChange(field, value) {
         setMachines(() =>
             machines.map((m) => {
@@ -69,6 +87,23 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
 
     return (
         <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2 border-b border-gray-700 pb-4">
+                <Input
+                    label="Input Endpoint"
+                    placeholder="8080"
+                    value={machine.ngfw?.listenport || ""}
+                    onValueChange={(value) => handleNgfwChange("listenport", value)}
+                    size="sm"
+                />
+                <Input
+                    label="Endpoint"
+                    placeholder="http://10.0.1.1:8080"
+                    value={machine.ngfw?.endpoint || ""}
+                    onValueChange={(value) => handleNgfwChange("endpoint", value)}
+                    size="sm"
+                />
+            </div>
+
             <div className="flex flex-col gap-2 border-b border-gray-700 pb-4">
                 <Switch
                     isSelected={machine.ngfw?.useFwknop || false}

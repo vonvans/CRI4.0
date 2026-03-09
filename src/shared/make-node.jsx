@@ -354,10 +354,14 @@ function makeLabConfFile(netkit, lab) {
     if (machine.type == "ngfw") {
       lab.file["lab.conf"] += `${machineName}[image]=icr/ngfw`;
 
-      if (machine.ngfw && machine.ngfw.waf && machine.ngfw.waf.enabled) {
+
+      // && machine.ngfw.waf && machine.ngfw.waf.enabled
+      if (machine.ngfw) {
+        const listenport = machine.ngfw.listenport || "8080";
+        const endpoint = machine.ngfw.endpoint || "http://10.0.1.1:8080";
+
+        /*
         const waf = machine.ngfw.waf;
-        const listenport = waf.listenport || "8080";
-        const endpoint = waf.endpoint || "http://10.0.1.1:8080";
         const findtime = waf.findtime || "10m";
         const maxretry = waf.maxretry || "5";
         const bantime = waf.bantime || "1h";
@@ -365,65 +369,16 @@ function makeLabConfFile(netkit, lab) {
         const http_code = waf.http_code || "200";
         const protocol = waf.protocol || "HTTP";
         const method = waf.method || "POST";
+        */
 
         lab.file[`${machineName}.startup`] += `
-# WAF Configuration
-LISTENPORT="${listenport}"
-ENDPOINT="${endpoint}"
-FINDTIME="${findtime}"
-MAXRETRY="${maxretry}"
-BANTIME="${bantime}"
-PAGE="${page}"
-HTTP_CODE="${http_code}"
-PROTOCOL="${protocol}"
-METHOD="${method}"
-
-# Install dependencies if needed (though already in image)
-# apt update & apt install -y sudo nginx-full fail2ban fluent-bit
-
-#------MAIN--------------------
-
-sed -i "s|__ENDPOINT__|$ENDPOINT|g" /etc/nginx/sites-available/default
-sed -i "s|__LISTENPORT__|$LISTENPORT|g" /etc/nginx/sites-available/default
-nginx -t && service nginx stop && service nginx start 
-
-# ---- FAIL2BAN
-service fail2ban start
-
-tee /etc/fail2ban/filter.d/nginx-login-200.conf > /dev/null <<EOF
-[Definition]
-failregex = ^<HOST>.*"\${METHOD}.*\${PAGE}.*\${PROTOCOL}/1\.[01]".* \${HTTP_CODE} [0-9]+
-ignoreregex =
-EOF
-
-tee /etc/fail2ban/jail.d/nginx-login-200.local > /dev/null <<__EOF__
-[nginx-login-200]
-enabled  = true
-filter   = nginx-login-200
-logpath  = /var/log/nginx/access.log
-backend  = polling
-polltime = 0.1
-
-findtime = \${FINDTIME}
-maxretry = \${MAXRETRY}
-bantime  = \${BANTIME}
-
-action = %(action_)s
-         loki
-__EOF__
-
-tee /etc/fail2ban/action.d/loki.conf << __EOF__
-[Definition]
-actionstart =
-actionstop =
-actioncheck =
-actionban =  /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been banned"}'
-actionunban = /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been unbanned"}'
-__EOF__
-
-service fail2ban restart
-fail2ban-client reload nginx-login-200
-`;
+        # TLS PROXY configuration
+        INPUT_PORT="${listenport}"
+        ENDPOINT="${endpoint}"
+        
+sed -i '/stream {/a  server { listen '"\${INPUT_PORT}"';  proxy_pass '"\${ENDPOINT}"'; }' /etc/nginx/nginx.conf
+service nginx stop && service nginx start
+        `;
       }
     }
     if (machine.type == "attacker") {
