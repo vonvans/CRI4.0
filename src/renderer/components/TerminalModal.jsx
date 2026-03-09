@@ -20,16 +20,11 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
     }, [isVisible, hasRendered]);
 
     useEffect(() => {
-        if (!hasRendered || !terminalRef.current || !containerName) return;
+        // Only run initializer once the component is mounted AND we have a containerName AND hasRendered is true
+        if (!containerName || !hasRendered) return;
 
-        // If already initialized, just resize when visible
-        if (xtermRef.current) {
-            if (isVisible && fitAddonRef.current) {
-                // Slight delay to allow display:block to apply and layout to calculate width/height
-                setTimeout(() => fitAddonRef.current.fit(), 50);
-            }
-            return;
-        }
+        // Prevent double initialization
+        if (xtermRef.current) return;
 
         // Initialize xterm
         const term = new Terminal({
@@ -44,8 +39,10 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
 
-        term.open(terminalRef.current);
-        fitAddon.fit();
+        if (terminalRef.current) {
+            term.open(terminalRef.current);
+            fitAddon.fit();
+        }
 
         xtermRef.current = term;
         fitAddonRef.current = fitAddon;
@@ -57,7 +54,7 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
         const initSession = async () => {
             try {
                 activeInstanceId = await api.terminalCreate(containerName);
-                if (!activeInstanceId) return; // Prevent setting null if it failed silently
+                if (!activeInstanceId) return;
                 setInstanceId(activeInstanceId);
 
                 // Initial resize
@@ -79,7 +76,6 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
                     }
                 };
                 window.addEventListener('resize', handleResize);
-
                 ptyUnsubscribe = () => window.removeEventListener('resize', handleResize);
             } catch (err) {
                 term.writeln(`\r\nError connecting to terminal: ${err.message}\r\n`);
@@ -88,15 +84,18 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
 
         initSession();
 
-        // Subscribe to incoming data
-        const unsubscribe = api.onTerminalData((id, data) => {
-            if (id === activeInstanceId && xtermRef.current) {
+        // Subscribe to incoming data - storing unsubscribe right away so it cleans up fine
+        const usub = api.onTerminalData((id, data) => {
+            if (activeInstanceId && id === activeInstanceId && xtermRef.current) {
+                xtermRef.current.write(data);
+            } else if (!activeInstanceId && xtermRef.current) {
+                // edge case: data arrives before activeInstanceId is set? rare.
                 xtermRef.current.write(data);
             }
         });
 
         return () => {
-            unsubscribe();
+            usub();
             if (ptyUnsubscribe) ptyUnsubscribe();
 
             if (activeInstanceId) {
@@ -107,15 +106,24 @@ export default function TerminalModal({ isVisible, onMinimize, onClose, containe
                 xtermRef.current = null;
             }
         };
-    }, [hasRendered, containerName, isVisible]);
+        // Dependency array now correctly ensures component reaches mounting state before running.
+    }, [containerName, hasRendered]);
+
+    // Handle visibility changes for resizing
+    useEffect(() => {
+        if (isVisible && fitAddonRef.current && xtermRef.current) {
+            // Slight delay to allow DOM to paint
+            setTimeout(() => fitAddonRef.current.fit(), 50);
+        }
+    }, [isVisible]);
 
     if (!hasRendered) return null;
 
     return (
-        <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none p-4 sm:p-10 ${isVisible ? '' : 'hidden'}`}>
-            <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto transition-opacity duration-300`} onClick={onMinimize}></div>
+        <div className={`fixed inset-0 flex flex-col items-center justify-center pointer-events-none p-4 sm:p-10 transition-all duration-300 ${isVisible ? 'z-50 opacity-100' : 'z-[-50] opacity-0'}`}>
+            <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0 !pointer-events-none'}`} onClick={onMinimize}></div>
 
-            <div className={`relative flex flex-col pointer-events-auto bg-[#18181b] w-full max-w-5xl rounded-large shadow-large overflow-hidden transition-all duration-300 scale-100 opacity-100`}>
+            <div className={`relative flex flex-col pointer-events-auto bg-[#18181b] w-full max-w-5xl rounded-large shadow-large overflow-hidden transition-all duration-300 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0 !pointer-events-none'}`}>
                 <div className="flex justify-between items-center px-6 py-4 border-b border-divider/10 bg-content1 shadow-sm relative z-10 w-full">
                     <span className="text-large font-semibold text-foreground">Terminal: {containerName}</span>
                     <div className="flex gap-2">
