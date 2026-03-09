@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import Graph from "react-graph-vis";
 import { makeGraph } from "../scripts/draw";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Accordion, AccordionItem, Button, Card, CardBody } from "@nextui-org/react";
 import { Checkbox, CheckboxGroup } from "@nextui-org/react";
 import { Select, SelectItem } from "@nextui-org/react";
@@ -19,6 +19,7 @@ import { getMachineIps } from "../utils/ipUtils";
 
 import { api } from "../api";
 
+import { TerminalContext } from "../contexts/TerminalContext";
 
 function Topology() {
 
@@ -26,9 +27,8 @@ function Topology() {
   const [showTimer, setShowTimer] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Terminal Modal State
-  const [terminalModalOpen, setTerminalModalOpen] = useState(false);
-  const [terminalNode, setTerminalNode] = useState(null);
+  // Terminal Sessions State
+  const { activeTerminals, setActiveTerminals } = useContext(TerminalContext);
 
   // UI Modal State
   const [uiModal, setUiModal] = useState({ isOpen: false, url: "", title: "" });
@@ -252,8 +252,14 @@ function Topology() {
                   machines={machines}
                   simulationRun={simulationRun}
                   onOpenTerminal={(nodeId) => {
-                    setTerminalNode(nodeId);
-                    setTerminalModalOpen(true);
+                    setActiveTerminals((prev) => {
+                      const existing = prev.find(t => t.nodeId === nodeId);
+                      if (existing) {
+                        return prev.map(t => t.nodeId === nodeId ? { ...t, minimized: false } : t);
+                      } else {
+                        return [...prev, { nodeId, minimized: false }];
+                      }
+                    });
                   }}
                   onOpenUI={async (nodeId) => {
                     // machine-name -> name
@@ -466,11 +472,19 @@ function Topology() {
                         </AccordionItem>
                     </Accordion>
                 </div> */}
-      <TerminalModal
-        isOpen={terminalModalOpen}
-        onClose={() => setTerminalModalOpen(false)}
-        containerName={terminalNode}
-      />
+      {activeTerminals.map(term => (
+        <TerminalModal
+          key={term.nodeId}
+          isVisible={!term.minimized}
+          onMinimize={() => {
+            setActiveTerminals(prev => prev.map(t => t.nodeId === term.nodeId ? { ...t, minimized: true } : t));
+          }}
+          onClose={() => {
+            setActiveTerminals(prev => prev.filter(t => t.nodeId !== term.nodeId));
+          }}
+          containerName={term.nodeId}
+        />
+      ))}
       <UIModal
         isOpen={uiModal.isOpen}
         onClose={() => setUiModal({ ...uiModal, isOpen: false })}

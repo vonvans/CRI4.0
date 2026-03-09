@@ -1,18 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from "@nextui-org/react";
+import { Button } from "@nextui-org/react";
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { api } from '../api';
 
-export default function TerminalModal({ isOpen, onClose, containerName }) {
+export default function TerminalModal({ isVisible, onMinimize, onClose, containerName }) {
     const terminalRef = useRef(null);
     const xtermRef = useRef(null);
     const fitAddonRef = useRef(null);
     const [instanceId, setInstanceId] = useState(null);
 
+    // Track if it has been opened at least once to initialize
+    const [hasRendered, setHasRendered] = useState(false);
+
     useEffect(() => {
-        if (!isOpen || !terminalRef.current || !containerName) return;
+        if (!isVisible && !hasRendered) return;
+        setHasRendered(true);
+    }, [isVisible, hasRendered]);
+
+    useEffect(() => {
+        if (!hasRendered || !terminalRef.current || !containerName) return;
+
+        // If already initialized, just resize when visible
+        if (xtermRef.current) {
+            if (isVisible && fitAddonRef.current) {
+                // Slight delay to allow display:block to apply and layout to calculate width/height
+                setTimeout(() => fitAddonRef.current.fit(), 50);
+            }
+            return;
+        }
 
         // Initialize xterm
         const term = new Terminal({
@@ -35,10 +52,12 @@ export default function TerminalModal({ isOpen, onClose, containerName }) {
 
         // Create terminal session in backend
         let activeInstanceId = null;
+        let ptyUnsubscribe = null;
 
         const initSession = async () => {
             try {
                 activeInstanceId = await api.terminalCreate(containerName);
+                if (!activeInstanceId) return; // Prevent setting null if it failed silently
                 setInstanceId(activeInstanceId);
 
                 // Initial resize
@@ -52,7 +71,7 @@ export default function TerminalModal({ isOpen, onClose, containerName }) {
 
                 // Handle resize
                 const handleResize = () => {
-                    if (!activeInstanceId) return;
+                    if (!activeInstanceId || !fitAddon) return;
                     fitAddon.fit();
                     const dims = fitAddon.proposeDimensions();
                     if (dims) {
@@ -61,14 +80,13 @@ export default function TerminalModal({ isOpen, onClose, containerName }) {
                 };
                 window.addEventListener('resize', handleResize);
 
-                // Cleanup resize listener
-                return () => window.removeEventListener('resize', handleResize);
+                ptyUnsubscribe = () => window.removeEventListener('resize', handleResize);
             } catch (err) {
                 term.writeln(`\r\nError connecting to terminal: ${err.message}\r\n`);
             }
         };
 
-        const cleanupResize = initSession();
+        initSession();
 
         // Subscribe to incoming data
         const unsubscribe = api.onTerminalData((id, data) => {
@@ -79,7 +97,8 @@ export default function TerminalModal({ isOpen, onClose, containerName }) {
 
         return () => {
             unsubscribe();
-            // cleanupResizePromise... complex logic, but useEffect cleanup handles destruction
+            if (ptyUnsubscribe) ptyUnsubscribe();
+
             if (activeInstanceId) {
                 api.terminalKill(activeInstanceId);
             }
@@ -88,35 +107,38 @@ export default function TerminalModal({ isOpen, onClose, containerName }) {
                 xtermRef.current = null;
             }
         };
-    }, [isOpen, containerName]);
+    }, [hasRendered, containerName, isVisible]);
+
+    if (!hasRendered) return null;
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            size="5xl"
-            scrollBehavior="inside"
-        >
-            <ModalContent>
-                {(onClose) => (
-                    <>
-                        <ModalHeader className="flex flex-col gap-1">
-                            Terminal: {containerName}
-                        </ModalHeader>
-                        <ModalBody>
-                            <div
-                                ref={terminalRef}
-                                style={{ width: '100%', height: '600px', backgroundColor: '#1e1e1e' }}
-                            />
-                        </ModalBody>
-                        <ModalFooter>
-                            <Button color="danger" variant="light" onPress={onClose}>
-                                Close
-                            </Button>
-                        </ModalFooter>
-                    </>
-                )}
-            </ModalContent>
-        </Modal>
+        <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none p-4 sm:p-10 ${isVisible ? '' : 'hidden'}`}>
+            <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto transition-opacity duration-300`} onClick={onMinimize}></div>
+
+            <div className={`relative flex flex-col pointer-events-auto bg-[#18181b] w-full max-w-5xl rounded-large shadow-large overflow-hidden transition-all duration-300 scale-100 opacity-100`}>
+                <div className="flex justify-between items-center px-6 py-4 border-b border-divider/10 bg-content1 shadow-sm relative z-10 w-full">
+                    <span className="text-large font-semibold text-foreground">Terminal: {containerName}</span>
+                    <div className="flex gap-2">
+                        <Button isIconOnly variant="flat" size="sm" onPress={onMinimize}
+                            className="bg-default-100 hover:bg-default-200 text-default-600"
+                        >
+                            <span className="font-bold text-lg leading-none transform -translate-y-[4px]">_</span>
+                        </Button>
+                        <Button isIconOnly variant="flat" size="sm" onPress={onClose}
+                            className="bg-danger/20 hover:bg-danger/40 text-danger"
+                        >
+                            <span className="font-bold">X</span>
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="p-4 sm:p-6 w-full h-[600px] max-h-[70vh] bg-[#1e1e1e]">
+                    <div
+                        ref={terminalRef}
+                        style={{ width: '100%', height: '100%' }}
+                    />
+                </div>
+            </div>
+        </div>
     );
 }

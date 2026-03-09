@@ -14,6 +14,7 @@ import Logs from "./pages/Logs";
 import { NextUIProvider } from '@nextui-org/react';
 import { AppNavbar } from './components/Navbar/AppNavbar';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { TerminalProvider } from './contexts/TerminalContext';
 import Settings from './pages/Settings';
 import { LogProvider } from './contexts/LogContext';
 import Report from './pages/Report';
@@ -36,20 +37,21 @@ export default function App() {
           <div className="flex h-full min-h-screen flex-col justify-between">
             <NotificationProvider>
               <LogProvider>
-                <AppNavbar darkMode={darkMode} setDarkMode={setDarkMode} />
-                <div className="min-h-[calc(100vh-4rem)]">
-                  <Routes>
-                    <Route path="/" element={<Outlet />}>
-                      <Route index element={<Home />} />
-                      <Route path="topology" element={<Topology />} />
-                      <Route path="attack" element={<Attack />} />
-                      <Route path="report" element={<Report />} />
-                      <Route path="logs" element={<Logs />} />
-                      <Route path="settings" element={<Settings />} />
-                    </Route>
-                  </Routes>
-                </div>
-
+                <TerminalProvider>
+                  <AppNavbar darkMode={darkMode} setDarkMode={setDarkMode} />
+                  <div className="min-h-[calc(100vh-4rem)]">
+                    <Routes>
+                      <Route path="/" element={<Outlet />}>
+                        <Route index element={<Home />} />
+                        <Route path="topology" element={<Topology />} />
+                        <Route path="attack" element={<Attack />} />
+                        <Route path="report" element={<Report />} />
+                        <Route path="logs" element={<Logs />} />
+                        <Route path="settings" element={<Settings />} />
+                      </Route>
+                    </Routes>
+                  </div>
+                </TerminalProvider>
               </LogProvider>
             </NotificationProvider>
           </div>
