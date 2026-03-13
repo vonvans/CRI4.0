@@ -240,18 +240,20 @@ npm start &
       }
 
       if (machine.type === "ngfw") {
-        if (machine.ngfw && machine.ngfw.signature && machine.ngfw.signature.enabled) {
-          const sig = machine.ngfw.signature;
-          const input_addr = sig.input_addr || "10.0.0.1";
-          const output_addr = sig.output_addr || "10.0.1.1";
-          const new_int = sig.new_int || "eth1";
-          const signature_name = sig.signature_name || "modbus-invalidreg";
-          const signature_body = sig.signature_body || "alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \\\"Traffic detected\\\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)";
-          const findtime = sig.findtime || "10m";
-          const maxretry = sig.maxretry || "5";
-          const bantime = sig.bantime || "1h";
+        // Signatures (array)
+        if (machine.ngfw && Array.isArray(machine.ngfw.signatures)) {
+          for (const sig of machine.ngfw.signatures) {
+            const input_addr = sig.input_addr || "10.0.0.1";
+            const output_addr = sig.output_addr || "10.0.1.1";
+            const new_int = sig.new_int || "eth1";
+            const signature_name = sig.signature_name || "modbus-invalidreg";
+            const signature_body = sig.signature_body || "alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \\\"Traffic detected\\\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)";
+            const findtime = sig.findtime || "10m";
+            const maxretry = sig.maxretry || "5";
+            const bantime = sig.bantime || "1h";
 
-          extraCommands += `snortadd ${input_addr} ${output_addr} ${new_int} ${signature_name} '${signature_body}' ${findtime} ${maxretry} ${bantime}\n`;
+            extraCommands += `snortadd ${input_addr} ${output_addr} ${new_int} ${signature_name} '${signature_body}' ${findtime} ${maxretry} ${bantime}\n`;
+          }
         }
       }
 
@@ -372,25 +374,7 @@ function makeLabConfFile(netkit, lab) {
 
 
       // && machine.ngfw.waf && machine.ngfw.waf.enabled
-      if (machine.ngfw) {
-        const listenport = machine.ngfw.listenport || "8080";
-        const endpoint = machine.ngfw.endpoint || "http://10.0.1.1:8080";
 
-        /*
-        const waf = machine.ngfw.waf;
-        const findtime = waf.findtime || "10m";
-        const maxretry = waf.maxretry || "5";
-        const bantime = waf.bantime || "1h";
-        const page = waf.page || "/login";
-        const http_code = waf.http_code || "200";
-        const protocol = waf.protocol || "HTTP";
-        const method = waf.method || "POST";
-        */
-
-        // --- NGFW startup! //
-        //lab.file[`${machineName}.startup`] += `
-        //`;
-      }
     }
     if (machine.type == "attacker") {
       if (machine.attackLoaded && machine.attackImage != "") {

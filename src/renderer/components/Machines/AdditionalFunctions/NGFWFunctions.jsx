@@ -2,134 +2,105 @@ import { Checkbox } from "@nextui-org/checkbox";
 import { Switch } from "@nextui-org/switch";
 import { Input } from "@nextui-org/input";
 import { Select, SelectItem } from "@nextui-org/select";
+import { Button } from "@nextui-org/button";
 
 export function NGFWFunctions({ machine, machines, setMachines }) {
-    function handleChange(value, targetMachineId) {
-        setMachines(() =>
-            machines.map((m) => {
-                if (m.id === machine.id) {
-                    return {
-                        ...m,
-                        ngfw: {
-                            ...(m.ngfw || {}),
-                            targetMachines: {
-                                ...(m.ngfw?.targetMachines || {}),
-                                [targetMachineId]: value,
-                            },
-                        },
-                    };
-                } else {
-                    return m;
-                }
-            })
-        );
+
+    function updateMachine(updater) {
+        setMachines(() => machines.map((m) => m.id === machine.id ? updater(m) : m));
     }
 
+    /* ── fwknop ── */
     function handleToggleRole(value) {
-        setMachines(() =>
-            machines.map((m) => {
-                if (m.id === machine.id) {
-                    return {
-                        ...m,
-                        ngfw: {
-                            ...(m.ngfw || {}),
-                            useFwknop: value,
-                        },
-                    };
-                } else {
-                    return m;
-                }
-            })
-        );
+        updateMachine((m) => ({ ...m, ngfw: { ...(m.ngfw || {}), useFwknop: value } }));
     }
 
-    function handleNgfwChange(field, value) {
-        setMachines(() =>
-            machines.map((m) => {
-                if (m.id === machine.id) {
-                    return {
-                        ...m,
-                        ngfw: {
-                            ...(m.ngfw || {}),
-                            [field]: value,
-                        },
-                    };
-                } else {
-                    return m;
-                }
-            })
-        );
+    function handleChange(value, targetMachineId) {
+        updateMachine((m) => ({
+            ...m,
+            ngfw: {
+                ...(m.ngfw || {}),
+                targetMachines: { ...(m.ngfw?.targetMachines || {}), [targetMachineId]: value },
+            },
+        }));
     }
 
-    function handleWafChange(field, value) {
-        setMachines(() =>
-            machines.map((m) => {
-                if (m.id === machine.id) {
-                    return {
-                        ...m,
-                        ngfw: {
-                            ...(m.ngfw || {}),
-                            waf: {
-                                ...(m.ngfw?.waf || {}),
-                                [field]: value,
-                            },
-                        },
-                    };
-                } else {
-                    return m;
-                }
-            })
-        );
+    /* ── WAF (array) ── */
+    function addWaf() {
+        updateMachine((m) => ({
+            ...m,
+            ngfw: {
+                ...(m.ngfw || {}),
+                wafRules: [
+                    ...(m.ngfw?.wafRules || []),
+                    { endpoint: "", findtime: "", maxretry: "", bantime: "", page: "", http_code: "", protocol: "HTTP", method: "POST" },
+                ],
+            },
+        }));
     }
 
-    function handleSignatureChange(field, value) {
-        setMachines(() =>
-            machines.map((m) => {
-                if (m.id === machine.id) {
-                    return {
-                        ...m,
-                        ngfw: {
-                            ...(m.ngfw || {}),
-                            signature: {
-                                ...(m.ngfw?.signature || {}),
-                                [field]: value,
-                            },
-                        },
-                    };
-                } else {
-                    return m;
-                }
-            })
-        );
+    function removeWaf(idx) {
+        updateMachine((m) => ({
+            ...m,
+            ngfw: {
+                ...(m.ngfw || {}),
+                wafRules: (m.ngfw?.wafRules || []).filter((_, i) => i !== idx),
+            },
+        }));
+    }
+
+    function handleWafChange(idx, field, value) {
+        updateMachine((m) => {
+            const rules = [...(m.ngfw?.wafRules || [])];
+            rules[idx] = { ...rules[idx], [field]: value };
+            return { ...m, ngfw: { ...(m.ngfw || {}), wafRules: rules } };
+        });
+    }
+
+    /* ── Signature (array) ── */
+    function addSignature() {
+        updateMachine((m) => ({
+            ...m,
+            ngfw: {
+                ...(m.ngfw || {}),
+                signatures: [
+                    ...(m.ngfw?.signatures || []),
+                    { input_addr: "", output_addr: "", new_int: "", signature_name: "", signature_body: "", findtime: "", maxretry: "", bantime: "" },
+                ],
+            },
+        }));
+    }
+
+    function removeSignature(idx) {
+        updateMachine((m) => ({
+            ...m,
+            ngfw: {
+                ...(m.ngfw || {}),
+                signatures: (m.ngfw?.signatures || []).filter((_, i) => i !== idx),
+            },
+        }));
+    }
+
+    function handleSignatureChange(idx, field, value) {
+        updateMachine((m) => {
+            const sigs = [...(m.ngfw?.signatures || [])];
+            sigs[idx] = { ...sigs[idx], [field]: value };
+            return { ...m, ngfw: { ...(m.ngfw || {}), signatures: sigs } };
+        });
     }
 
     const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
     const protocols = ["HTTP", "HTTPS"];
 
+    const wafRules = machine.ngfw?.wafRules || [];
+    const signatures = machine.ngfw?.signatures || [];
+
     return (
         <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 border-b border-gray-700 pb-4">
-                <Input
-                    label="Input Endpoint"
-                    placeholder="8080"
-                    value={machine.ngfw?.listenport || ""}
-                    onValueChange={(value) => handleNgfwChange("listenport", value)}
-                    size="sm"
-                />
-                <Input
-                    label="Endpoint"
-                    placeholder="http://10.0.1.1:8080"
-                    value={machine.ngfw?.endpoint || ""}
-                    onValueChange={(value) => handleNgfwChange("endpoint", value)}
-                    size="sm"
-                />
-            </div>
 
+            {/* ── fwknop ── */}
             <div className="flex flex-col gap-2 border-b border-gray-700 pb-4">
-                <Switch
-                    isSelected={machine.ngfw?.useFwknop || false}
-                    onValueChange={handleToggleRole}
-                >
+                <Switch isSelected={machine.ngfw?.useFwknop || false} onValueChange={handleToggleRole}>
                     Use fwknop
                 </Switch>
 
@@ -138,7 +109,7 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
                         <label className="text-sm font-semibold mt-2">Target Machines</label>
                         <div className="grid grid-cols-2 gap-2">
                             {machines
-                                .filter((m) => m.id !== machine.id) // Optionally exclude self
+                                .filter((m) => m.id !== machine.id)
                                 .map((m) => (
                                     <Checkbox
                                         key={m.id}
@@ -156,158 +127,64 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
                 )}
             </div>
 
+            {/* ── WAF rules ── */}
+            <div className="flex flex-col gap-2 border-b border-gray-700 pb-4">
+                <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">WAF Rules</span>
+                    <Button size="sm" variant="flat" onPress={addWaf} className="min-w-0 px-2">＋</Button>
+                </div>
+
+                {wafRules.map((rule, idx) => (
+                    <div key={idx} className="flex flex-col gap-2 border border-gray-700 rounded-lg p-3 relative">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-gray-400">Rule {idx + 1}</span>
+                            <Button size="sm" variant="light" color="danger" onPress={() => removeWaf(idx)} className="min-w-0 px-2 h-6 text-xs">✕</Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Input label="Endpoint" placeholder="http://10.0.1.1:8080" value={rule.endpoint || ""} onValueChange={(v) => handleWafChange(idx, "endpoint", v)} size="sm" />
+                            <Input label="Find Time" placeholder="10m" value={rule.findtime || ""} onValueChange={(v) => handleWafChange(idx, "findtime", v)} size="sm" />
+                            <Input label="Max Retry" placeholder="5" type="number" value={rule.maxretry || ""} onValueChange={(v) => handleWafChange(idx, "maxretry", v)} size="sm" />
+                            <Input label="Ban Time" placeholder="1h" value={rule.bantime || ""} onValueChange={(v) => handleWafChange(idx, "bantime", v)} size="sm" />
+                            <Input label="Page" placeholder="/login" value={rule.page || ""} onValueChange={(v) => handleWafChange(idx, "page", v)} size="sm" />
+                            <Input label="HTTP Code" placeholder="200" value={rule.http_code || ""} onValueChange={(v) => handleWafChange(idx, "http_code", v)} size="sm" />
+                            <Select label="Protocol" selectedKeys={rule.protocol ? [rule.protocol] : []} onChange={(e) => handleWafChange(idx, "protocol", e.target.value)} size="sm">
+                                {protocols.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </Select>
+                            <Select label="Method" selectedKeys={rule.method ? [rule.method] : []} onChange={(e) => handleWafChange(idx, "method", e.target.value)} size="sm">
+                                {httpMethods.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                            </Select>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ── Signatures ── */}
             <div className="flex flex-col gap-2">
-                <Switch
-                    isSelected={machine.ngfw?.waf?.enabled || false}
-                    onValueChange={(value) => handleWafChange("enabled", value)}
-                >
-                    Waf
-                </Switch>
+                <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">Signatures</span>
+                    <Button size="sm" variant="flat" onPress={addSignature} className="min-w-0 px-2">＋</Button>
+                </div>
 
-                {machine.ngfw?.waf?.enabled && (
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                        <Input
-                            label="Endpoint"
-                            placeholder="http://10.0.1.1:8080"
-                            value={machine.ngfw?.waf?.endpoint || ""}
-                            onValueChange={(value) => handleWafChange("endpoint", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Find Time"
-                            placeholder="10m"
-                            value={machine.ngfw?.waf?.findtime || ""}
-                            onValueChange={(value) => handleWafChange("findtime", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Max Retry"
-                            placeholder="5"
-                            type="number"
-                            value={machine.ngfw?.waf?.maxretry || ""}
-                            onValueChange={(value) => handleWafChange("maxretry", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Ban Time"
-                            placeholder="1h"
-                            value={machine.ngfw?.waf?.bantime || ""}
-                            onValueChange={(value) => handleWafChange("bantime", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Page"
-                            placeholder="/login"
-                            value={machine.ngfw?.waf?.page || ""}
-                            onValueChange={(value) => handleWafChange("page", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="HTTP Code"
-                            placeholder="200"
-                            value={machine.ngfw?.waf?.http_code || ""}
-                            onValueChange={(value) => handleWafChange("http_code", value)}
-                            size="sm"
-                        />
-                        <Select
-                            label="Protocol"
-                            selectedKeys={machine.ngfw?.waf?.protocol ? [machine.ngfw.waf.protocol] : []}
-                            onChange={(e) => handleWafChange("protocol", e.target.value)}
-                            size="sm"
-                        >
-                            {protocols.map((proto) => (
-                                <SelectItem key={proto} value={proto}>
-                                    {proto}
-                                </SelectItem>
-                            ))}
-                        </Select>
-                        <Select
-                            label="Method"
-                            selectedKeys={machine.ngfw?.waf?.method ? [machine.ngfw.waf.method] : []}
-                            onChange={(e) => handleWafChange("method", e.target.value)}
-                            size="sm"
-                        >
-                            {httpMethods.map((method) => (
-                                <SelectItem key={method} value={method}>
-                                    {method}
-                                </SelectItem>
-                            ))}
-                        </Select>
+                {signatures.map((sig, idx) => (
+                    <div key={idx} className="flex flex-col gap-2 border border-gray-700 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-gray-400">Signature {idx + 1}</span>
+                            <Button size="sm" variant="light" color="danger" onPress={() => removeSignature(idx)} className="min-w-0 px-2 h-6 text-xs">✕</Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Input label="Input Addr" placeholder="10.0.0.1" value={sig.input_addr || ""} onValueChange={(v) => handleSignatureChange(idx, "input_addr", v)} size="sm" />
+                            <Input label="Output Addr" placeholder="10.0.1.1" value={sig.output_addr || ""} onValueChange={(v) => handleSignatureChange(idx, "output_addr", v)} size="sm" />
+                            <Input label="New Int" placeholder="eth1" value={sig.new_int || ""} onValueChange={(v) => handleSignatureChange(idx, "new_int", v)} size="sm" />
+                            <Input label="Signature Name" placeholder="modbus-invalidreg" value={sig.signature_name || ""} onValueChange={(v) => handleSignatureChange(idx, "signature_name", v)} size="sm" />
+                            <Input className="col-span-2" label="Signature Body" placeholder="alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (...)" value={sig.signature_body || ""} onValueChange={(v) => handleSignatureChange(idx, "signature_body", v)} size="sm" />
+                            <Input label="Find Time" placeholder="10m" value={sig.findtime || ""} onValueChange={(v) => handleSignatureChange(idx, "findtime", v)} size="sm" />
+                            <Input label="Max Retry" placeholder="5" type="number" value={sig.maxretry || ""} onValueChange={(v) => handleSignatureChange(idx, "maxretry", v)} size="sm" />
+                            <Input label="Ban Time" placeholder="1h" value={sig.bantime || ""} onValueChange={(v) => handleSignatureChange(idx, "bantime", v)} size="sm" />
+                        </div>
                     </div>
-                )}
+                ))}
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-gray-700 pt-4">
-                <Switch
-                    isSelected={machine.ngfw?.signature?.enabled || false}
-                    onValueChange={(value) => handleSignatureChange("enabled", value)}
-                >
-                    Signature
-                </Switch>
-
-                {machine.ngfw?.signature?.enabled && (
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                        <Input
-                            label="Input Addr"
-                            placeholder="10.0.0.1"
-                            value={machine.ngfw?.signature?.input_addr || ""}
-                            onValueChange={(value) => handleSignatureChange("input_addr", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Output Addr"
-                            placeholder="10.0.1.1"
-                            value={machine.ngfw?.signature?.output_addr || ""}
-                            onValueChange={(value) => handleSignatureChange("output_addr", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="New Int"
-                            placeholder="eth1"
-                            value={machine.ngfw?.signature?.new_int || ""}
-                            onValueChange={(value) => handleSignatureChange("new_int", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Signature Name"
-                            placeholder="modbus-invalidreg"
-                            value={machine.ngfw?.signature?.signature_name || ""}
-                            onValueChange={(value) => handleSignatureChange("signature_name", value)}
-                            size="sm"
-                        />
-                        <Input
-                            className="col-span-2"
-                            label="Signature Body"
-                            placeholder="alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (...)"
-                            value={machine.ngfw?.signature?.signature_body || ""}
-                            onValueChange={(value) => handleSignatureChange("signature_body", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Find Time"
-                            placeholder="10m"
-                            value={machine.ngfw?.signature?.findtime || ""}
-                            onValueChange={(value) => handleSignatureChange("findtime", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Max Retry"
-                            placeholder="5"
-                            type="number"
-                            value={machine.ngfw?.signature?.maxretry || ""}
-                            onValueChange={(value) => handleSignatureChange("maxretry", value)}
-                            size="sm"
-                        />
-                        <Input
-                            label="Ban Time"
-                            placeholder="1h"
-                            value={machine.ngfw?.signature?.bantime || ""}
-                            onValueChange={(value) => handleSignatureChange("bantime", value)}
-                            size="sm"
-                        />
-                    </div>
-                )}
-            </div>
         </div>
     );
 }

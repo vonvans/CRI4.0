@@ -695,26 +695,26 @@ function makeNGFW(netkit, lab) {
 		if (machine.type === "ngfw") {
 			console.log("[DEBUG] Checking NGFW machine:", machine.name);
 			console.log("[DEBUG] machine.ngfw:", JSON.stringify(machine.ngfw));
-			console.log("[DEBUG] WAF enable check:", machine.ngfw && machine.ngfw.waf && machine.ngfw.waf.enabled);
 		}
 
 		if (machine.type == "engine") { lab.file["lab.conf"] += machine.name + "[image]=icr/engine"; }
 		if (machine.type == "fan") { lab.file["lab.conf"] += machine.name + "[image]=icr/fan"; }
 		if (machine.type == "temperature_sensor") { lab.file["lab.conf"] += machine.name + "[image]=icr/temperature_sensor"; }
 
-		if (machine.type === "ngfw" && machine.ngfw && machine.ngfw.waf && machine.ngfw.waf.enabled) {
-			console.log("[DEBUG] Generating WAF config for", machine.name);
-			const waf = machine.ngfw.waf;
-			const endpoint = waf.endpoint || "http://10.0.1.1:8080";
-			const findtime = waf.findtime || "10m";
-			const maxretry = waf.maxretry || "5";
-			const bantime = waf.bantime || "1h";
-			const page = waf.page || "/login";
-			const http_code = waf.http_code || "200";
-			const protocol = waf.protocol || "HTTP";
-			const method = waf.method || "POST";
+		// WAF rules (array)
+		if (machine.type === "ngfw" && machine.ngfw && Array.isArray(machine.ngfw.wafRules)) {
+			for (const waf of machine.ngfw.wafRules) {
+				console.log("[DEBUG] Generating WAF rule for", machine.name);
+				const endpoint = waf.endpoint || "http://10.0.1.1:8080";
+				const findtime = waf.findtime || "10m";
+				const maxretry = waf.maxretry || "5";
+				const bantime = waf.bantime || "1h";
+				const page = waf.page || "/login";
+				const http_code = waf.http_code || "200";
+				const protocol = waf.protocol || "HTTP";
+				const method = waf.method || "POST";
 
-			lab.file[machine.name + ".startup"] += `
+				lab.file[machine.name + ".startup"] += `
 # WAF Configuration
 ENDPOINT="${endpoint}"
 FINDTIME="${findtime}"
@@ -724,9 +724,6 @@ PAGE="${page}"
 HTTP_CODE="${http_code}"
 PROTOCOL="${protocol}"
 METHOD="${method}"
-
-
-
 
 
 # Install dependencies if needed (though already in image)
@@ -855,22 +852,25 @@ EOF
 
 fluent-bit -c /etc/fluent-bit/sender.conf
 `;
+			}
 		}
-		if (machine.type === "ngfw" && machine.ngfw && machine.ngfw.signature && machine.ngfw.signature.enabled) {
-			console.log("[DEBUG] Generating Signature config for", machine.name);
-			const sig = machine.ngfw.signature;
-			const input_addr = sig.input_addr || "10.0.0.1";
-			const output_addr = sig.output_addr || "10.0.1.1";
-			const new_int = sig.new_int || "eth1";
-			const signature_name = sig.signature_name || "modbus-invalidreg";
-			const signature_body = sig.signature_body || "alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \\\"Traffic detected\\\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)";
-			const findtime = sig.findtime || "10m";
-			const maxretry = sig.maxretry || "5";
-			const bantime = sig.bantime || "1h";
+		// Signatures (array)
+		if (machine.type === "ngfw" && machine.ngfw && Array.isArray(machine.ngfw.signatures)) {
+			for (const sig of machine.ngfw.signatures) {
+				console.log("[DEBUG] Generating Signature for", machine.name);
+				const input_addr = sig.input_addr || "10.0.0.1";
+				const output_addr = sig.output_addr || "10.0.1.1";
+				const new_int = sig.new_int || "eth1";
+				const signature_name = sig.signature_name || "modbus-invalidreg";
+				const signature_body = sig.signature_body || "alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \\\"Traffic detected\\\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)";
+				const findtime = sig.findtime || "10m";
+				const maxretry = sig.maxretry || "5";
+				const bantime = sig.bantime || "1h";
 
-			lab.file[machine.name + ".startup"] += `
+				lab.file[machine.name + ".startup"] += `
 snortadd ${input_addr} ${output_addr} ${new_int} ${signature_name} '${signature_body}' ${findtime} ${maxretry} ${bantime}
 `;
+			}
 		}
 	}
 }
