@@ -82,6 +82,27 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
         );
     }
 
+    function handleSignatureChange(field, value) {
+        setMachines(() =>
+            machines.map((m) => {
+                if (m.id === machine.id) {
+                    return {
+                        ...m,
+                        ngfw: {
+                            ...(m.ngfw || {}),
+                            signature: {
+                                ...(m.ngfw?.signature || {}),
+                                [field]: value,
+                            },
+                        },
+                    };
+                } else {
+                    return m;
+                }
+            })
+        );
+    }
+
     const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
     const protocols = ["HTTP", "HTTPS"];
 
@@ -212,6 +233,78 @@ export function NGFWFunctions({ machine, machines, setMachines }) {
                                 </SelectItem>
                             ))}
                         </Select>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-gray-700 pt-4">
+                <Switch
+                    isSelected={machine.ngfw?.signature?.enabled || false}
+                    onValueChange={(value) => handleSignatureChange("enabled", value)}
+                >
+                    Signature
+                </Switch>
+
+                {machine.ngfw?.signature?.enabled && (
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                        <Input
+                            label="Input Addr"
+                            placeholder="10.0.0.1"
+                            value={machine.ngfw?.signature?.input_addr || ""}
+                            onValueChange={(value) => handleSignatureChange("input_addr", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="Output Addr"
+                            placeholder="10.0.1.1"
+                            value={machine.ngfw?.signature?.output_addr || ""}
+                            onValueChange={(value) => handleSignatureChange("output_addr", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="New Int"
+                            placeholder="eth1"
+                            value={machine.ngfw?.signature?.new_int || ""}
+                            onValueChange={(value) => handleSignatureChange("new_int", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="Signature Name"
+                            placeholder="modbus-invalidreg"
+                            value={machine.ngfw?.signature?.signature_name || ""}
+                            onValueChange={(value) => handleSignatureChange("signature_name", value)}
+                            size="sm"
+                        />
+                        <Input
+                            className="col-span-2"
+                            label="Signature Body"
+                            placeholder="alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (...)"
+                            value={machine.ngfw?.signature?.signature_body || ""}
+                            onValueChange={(value) => handleSignatureChange("signature_body", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="Find Time"
+                            placeholder="10m"
+                            value={machine.ngfw?.signature?.findtime || ""}
+                            onValueChange={(value) => handleSignatureChange("findtime", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="Max Retry"
+                            placeholder="5"
+                            type="number"
+                            value={machine.ngfw?.signature?.maxretry || ""}
+                            onValueChange={(value) => handleSignatureChange("maxretry", value)}
+                            size="sm"
+                        />
+                        <Input
+                            label="Ban Time"
+                            placeholder="1h"
+                            value={machine.ngfw?.signature?.bantime || ""}
+                            onValueChange={(value) => handleSignatureChange("bantime", value)}
+                            size="sm"
+                        />
                     </div>
                 )}
             </div>

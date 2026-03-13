@@ -1,0 +1,59 @@
+#!/bin/sh
+
+NAME="f2bcompanion"
+PIDFILE="/var/run/${NAME}.pid"
+
+case "$1" in
+    start)
+	    if [ -f "$PIDFILE" ]; then
+		    echo "${NAME} is already running"
+	    else
+	        echo "Starting $NAME"
+	        sh -c "tail -n 0 -F /var/log/suricata/eve.json | stdbuf -oL f2bcompanion >> /tmp/f2b.log 2> /var/log/f2bcompanion.err" &
+	        echo $! > "$PIDFILE"
+	        echo "$NAME started"
+	    fi
+        ;;
+        
+    stop)
+        if [ -f "$PIDFILE" ]; then
+	        echo "Stop $NAME"
+	        kill $(cat "$PIDFILE")
+	        rm "$PIDFILE"
+	        echo "$NAME stopped"
+	    else
+		    echo "The service is not running"
+	    fi
+        ;;
+        
+    restart)
+        stop
+        start
+        ;;
+        
+    status)
+        if [ -f "$PIDFILE" ] && ps -p $(cat "$PIDFILE") > /dev/null; then
+            echo "$NAME is running (PID $(cat "$PIDFILE"))."
+        else
+            echo "$NAME it is stopped"
+        fi
+        ;;
+        
+    log)
+	    cat /tmp/f2b.log
+		;;
+		
+	error)
+		cat /var/log/${NAME}.err
+		;;
+		
+	clearlogs)
+	    rm /var/run/${NAME}.pipe
+	    rm /var/log/${NAME}.err
+		;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status|log|error|clearlogs}"
+        exit 1
+        ;;
+esac
+exit 0

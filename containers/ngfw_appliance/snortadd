@@ -1,0 +1,76 @@
+#! /bin/bash
+
+if [ "$#" -ne 8 ]; then
+    echo "Usage: $0 <INPUT_ADDR> <OUTPUT_ADDR> <NEW_INT> <SIGNATURE_NAME> <SIGNATURE_BODY> <FINDTIME> <MAXRETRY> <BANTIME>"
+    echo "Example: $0 10.0.0.1 10.0.1.1 eth1 modbus-invalidreg 'alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \"Traffic detected\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)' 10m 5 1h"
+    exit 1
+fi
+
+INPUT_ADDR="$1" #10.0.0.1
+OUTPUT_ADDR="$2" #10.0.1.1
+NEW_INT="$3" #eth1
+SIGNATURE_NAME="$4" #"modbus-invalidreg"
+SIGNATURE_BODY="$5" #'alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: "Traffic detected"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)'
+FINDTIME="$6" #"10m"
+MAXRETRY="$7" #"5"
+BANTIME="$8" #"1h"
+
+
+INPUT_SOLOADDR="$(echo ${INPUT_ADDR} | cut -d: -f1)"
+OUTPUT_SOLOADDR="$(echo ${OUTPUT_ADDR} | cut -d: -f1)"
+
+# add proxy
+sed -i '/stream {/a \
+    server {\
+        listen '"${INPUT_ADDR}"';\
+        proxy_pass '"${OUTPUT_ADDR}"';\
+    }' /etc/nginx/nginx.conf
+nginx -t
+service nginx stop
+service nginx start
+
+# add interface
+yq eval ".af-packet += [{\"interface\": \"${NEW_INT}\", \"cluster-id\": 98}]" -i /etc/suricata/suricata.yaml
+
+# add address
+INTERFACES=()
+INTERFACES+=("${INPUT_SOLOADDR}")
+INTERFACES_LIST=$(tolist -o ${INTERFACES[@]})
+yq -i ".vars.\"address-groups\".HOME_NET = \"${INTERFACES_LIST}\"" /etc/suricata/suricata.yaml
+#suricata-update
+service suricata start
+
+# Create signature
+tee /var/lib/suricata/rules/${SIGNATURE_NAME}.rules > /dev/null << __EOF__
+${SIGNATURE_BODY}
+__EOF__
+yq eval '.["rule-files"] += ["'"${SIGNATURE_NAME}.rules"'"]' -i /etc/suricata/suricata.yaml
+yq eval '
+.app-layer.protocols.modbus.enabled = true |
+.app-layer.protocols.modbus["detection-enabled"] = true
+' -i /etc/suricata/suricata.yaml
+suricata -T -c /etc/suricata/suricata.yaml -v   # test config
+suricatasc -c reload-rules
+service suricata stop && service suricata start # TODO: delete 
+
+
+SID=$(echo ${SIGNATURE_BODY} | grep -Po 'sid:\K\d+')
+
+# create 
+tee /etc/fail2ban/jail.d/suricata-${SID}.local > /dev/null <<__EOF__
+[suricata-${SID}]
+enabled  = true
+filter   = suricata-${SID}
+logpath  = /var/log/suricata/eve.json
+backend  = polling
+polltime = 0.1
+
+findtime = ${FINDTIME}
+maxretry = ${MAXRETRY}
+bantime  = ${BANTIME}
+action = %(action_)s
+         loki
+__EOF__
+
+service fail2ban stop 
+service fail2ban start 

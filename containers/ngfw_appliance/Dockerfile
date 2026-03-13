@@ -28,6 +28,23 @@ RUN apt update && apt install -y \
     && yq -i '.threshold-file = "/etc/suricata/threshold.config"' /etc/suricata/suricata.yaml \
     && yq eval '.af-packet[0]."tpacket-v3" = "yes"' -i /etc/suricata/suricata.yaml \
     && yq eval 'del(.outputs | select(tag == "!!seq") | select(length == 3))' -i /etc/suricata/suricata.yaml \
-    && suricata-update \
     && yq -i 'del(.vars."address-groups".HOME_NET)' /etc/suricata/suricata.yaml \
     && sed -i 's/RUN=no/RUN=yes/' /etc/default/suricata
+
+COPY f2bcompanion /usr/local/bin/f2bcompanion
+COPY f2bcompanion.service /etc/init.d/f2bcompanion
+COPY loki.conf /etc/fail2ban/action.d/loki.conf
+COPY modbus-invalidreg.rules /var/lib/suricata/rules/modbus-invalidreg.rules
+COPY suricata-1000001.conf /etc/fail2ban/filter.d/suricata-1000001.conf
+
+#TODO: move above
+RUN apt update && apt install -y procps
+RUN chmod +x /usr/local/bin/f2bcompanion
+RUN chmod +x /etc/init.d/f2bcompanion
+RUN touch /tmp/f2b.log
+RUN touch /var/log/f2bcompanion.err
+
+COPY snortadd /usr/local/bin/snortadd
+RUN chmod +x /usr/local/bin/snortadd
+
+RUN apt install -y crudini

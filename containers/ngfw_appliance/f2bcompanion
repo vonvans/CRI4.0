@@ -1,0 +1,17 @@
+#! /usr/bin/env python3
+
+import sys
+import json
+import datetime
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        data = json.loads(line)
+        exception = data["modbus"]["response"]["exception"]["raw"]
+        if (exception == 2):
+            ip = data['dest_ip']
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
+            print(f"{now} {ip}",flush=True)
+    except:
+        continue

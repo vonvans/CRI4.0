@@ -239,6 +239,22 @@ npm start &
 `;
       }
 
+      if (machine.type === "ngfw") {
+        if (machine.ngfw && machine.ngfw.signature && machine.ngfw.signature.enabled) {
+          const sig = machine.ngfw.signature;
+          const input_addr = sig.input_addr || "10.0.0.1";
+          const output_addr = sig.output_addr || "10.0.1.1";
+          const new_int = sig.new_int || "eth1";
+          const signature_name = sig.signature_name || "modbus-invalidreg";
+          const signature_body = sig.signature_body || "alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: \\\"Traffic detected\\\"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)";
+          const findtime = sig.findtime || "10m";
+          const maxretry = sig.maxretry || "5";
+          const bantime = sig.bantime || "1h";
+
+          extraCommands += `snortadd ${input_addr} ${output_addr} ${new_int} ${signature_name} '${signature_body}' ${findtime} ${maxretry} ${bantime}\n`;
+        }
+      }
+
       lab.file[`${machineName}.startup`] = header + ipSetup + (body ? body + "\n\n" : "") + extraCommands;
     }
   }
@@ -371,14 +387,9 @@ function makeLabConfFile(netkit, lab) {
         const method = waf.method || "POST";
         */
 
-        lab.file[`${machineName}.startup`] += `
-        # TLS PROXY configuration
-        INPUT_PORT="${listenport}"
-        ENDPOINT="${endpoint}"
-        
-sed -i '/stream {/a  server { listen '"\${INPUT_PORT}"';  proxy_pass '"\${ENDPOINT}"'; }' /etc/nginx/nginx.conf
-service nginx stop && service nginx start
-        `;
+        // --- NGFW startup! //
+        //lab.file[`${machineName}.startup`] += `
+        //`;
       }
     }
     if (machine.type == "attacker") {
@@ -392,7 +403,7 @@ service nginx stop && service nginx start
         }
       } else {
         //lab.file["lab.conf"] += `${machine.name}[image]=kalilinux/kali-rolling`;
-        lab.file["lab.conf"] += `${machineName}[image]=kalilinux/kali-rolling@sha256:eb500810d9d44236e975291205bfd45e9e19b7f63859e3a72ba30ea548ddb1df`;
+        lab.file["lab.conf"] += `${machineName}[image]=kalilinux/kali-rolling@sha256:eb500810d9d44236e975291205bfd45e9e19b7f63859e3a72ba30ea548ddb1df\n`;
 
       }
       // Explicitly set hostname to avoid Docker utilizing image name or random string
