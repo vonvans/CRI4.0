@@ -8,8 +8,9 @@ import { XSymbol } from "../Symbols/XSymbol";
 import MachineSelector from "./MachineSelector";
 import AttackSelector from "./AttackSelector";
 import { attacksModel } from "../../models/model";
+import { extractTargetIPs } from "../../utils/ipUtils";
 
-function MITM({attacker, attacks, isLoading, machines, setMachines, handleRefresh}) {
+function MITM({ attacker, attacks, isLoading, machines, setMachines, handleRefresh }) {
   const [selectedImage, setSelectedImage] = useState(attacker?.attackImage || "");
   const { setAttackLoaded } = useContext(NotificationContext);
   const [targets, setTargets] = useState(attacker?.targets || []);
@@ -24,8 +25,8 @@ function MITM({attacker, attacks, isLoading, machines, setMachines, handleRefres
   const [pingAText, setPingAText] = useState("");
 
   const [liteCountEnabled, setLiteCountEnabled] = useState(false);
-  const [liteCountValue, setLiteCountValue]     = useState("100");
-  const [speedMode, setSpeedMode]               = useState(null); // 'fast' | 'faster' | null
+  const [liteCountValue, setLiteCountValue] = useState("100");
+  const [speedMode, setSpeedMode] = useState(null); // 'fast' | 'faster' | null
 
   // ICMP-only (per i ping, già presenti)
   const [icmpCodeEnabled, setIcmpCodeEnabled] = useState(false);
@@ -49,21 +50,21 @@ function MITM({attacker, attacks, isLoading, machines, setMachines, handleRefres
   const [arpRestore, setArpRestore] = useState(true);
 
   // ARP: toggle per i 4 parametri (iface/gateway sempre ON e non disattivabili)
-const [arpIfaceEnabled] = useState(true);
-const [arpGatewayEnabled] = useState(true);
-const [arpVictimMacEnabled, setArpVictimMacEnabled] = useState(false);
-const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
+  const [arpIfaceEnabled] = useState(true);
+  const [arpGatewayEnabled] = useState(true);
+  const [arpVictimMacEnabled, setArpVictimMacEnabled] = useState(false);
+  const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
 
   // ---------------------------
   //    NOMI/CHIAVI ATTACCHI
   // ---------------------------
   const DOS_FLOOD = new Set(["icmp-flood", "syn-flood", "udp-flood"]);
-  const DOS_LITE  = new Set(["icmp-floodlite", "syn-floodlite", "udp-floodlite"]);
-  const DOS_ALL   = new Set([...DOS_FLOOD, ...DOS_LITE]);
+  const DOS_LITE = new Set(["icmp-floodlite", "syn-floodlite", "udp-floodlite"]);
+  const DOS_ALL = new Set([...DOS_FLOOD, ...DOS_LITE]);
 
   const isIcmpKey = (k) => k.includes("icmp");
-  const isSynKey  = (k) => k.includes("syn");
-  const isUdpKey  = (k) => k.includes("udp");
+  const isSynKey = (k) => k.includes("syn");
+  const isUdpKey = (k) => k.includes("udp");
 
   // ⚠️ identifica ARP spoofing: adatta le chiavi ai tuoi name reali
   const isArpAttack = (def) => {
@@ -74,11 +75,11 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
   // mapping di base (PING)
   const PING_BEFORE_TOKENS_BY_NAME = {
     "icmp-flood": ["-1", "--flood"],
-    "syn-flood":  ["-S", "--flood"],
-    "udp-flood":  ["-2", "--flood"],
+    "syn-flood": ["-S", "--flood"],
+    "udp-flood": ["-2", "--flood"],
     "icmp-floodlite": ["-1"],
-    "syn-floodlite":  ["-S"],
-    "udp-floodlite":  ["-2"],
+    "syn-floodlite": ["-S"],
+    "udp-floodlite": ["-2"],
   };
 
   const [arpPrevArgsAfter, setArpPrevArgsAfter] = useState(null);
@@ -100,19 +101,19 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
           const afterAll = Array.isArray(def.parameters.argsAfterTargets)
             ? def.parameters.argsAfterTargets.map(String)
             : (typeof def.parameters.argsAfterTargets === "string"
-                ? (def.parameters.argsAfterTargets.match(/\S+/g) || [])
-                : []);
+              ? (def.parameters.argsAfterTargets.match(/\S+/g) || [])
+              : []);
 
           let toOn = false, toVal = "1";
           let aOn = false, aVal = "";
           for (let i = 0; i < afterAll.length; i++) {
             const t = afterAll[i];
             if (t === "--timeout") {
-              const v = afterAll[i+1];
+              const v = afterAll[i + 1];
               if (v && !isNaN(parseFloat(v))) { toOn = true; toVal = String(v); i++; }
               else { toOn = true; toVal = "1"; }
             } else if (t === "-a") {
-              const v = afterAll[i+1];
+              const v = afterAll[i + 1];
               if (v && !v.startsWith("-")) { aOn = true; aVal = String(v); i++; }
               else { aOn = true; aVal = ""; }
             }
@@ -160,7 +161,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
           updated = true;
         }
       }
-    } catch {}
+    } catch { }
     if (!updated) console.warn("updateAttackArgsBefore: attack not found:", attackName);
 
     // ricostruisci comando se attivo
@@ -227,7 +228,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
           updated = true;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     if (!updated) console.warn("updateAttackArgsAfter: attack not found:", attackName);
 
     try {
@@ -280,34 +281,34 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
   //  Costruzione BEFORE tokens
   // ---------------------------
   function getArpBeforeTokens() {
-  const before = [];
+    const before = [];
 
-  // iface & gateway: obbligatori -> checkbox sempre true
-  if (arpIfaceEnabled && arpIface.trim()) {
-    before.push("--iface", arpIface.trim());
-  }
-  if (arpGatewayEnabled && arpGateway.trim()) {
-    before.push("--gateway", arpGateway.trim());
-  }
+    // iface & gateway: obbligatori -> checkbox sempre true
+    if (arpIfaceEnabled && arpIface.trim()) {
+      before.push("--iface", arpIface.trim());
+    }
+    if (arpGatewayEnabled && arpGateway.trim()) {
+      before.push("--gateway", arpGateway.trim());
+    }
 
-  // opzionali: solo se abilitati
-  if (arpVictimMacEnabled && arpVictimMac.trim()) {
-    before.push("--victim-mac", arpVictimMac.trim());
-  }
-  if (arpGatewayMacEnabled && arpGatewayMac.trim()) {
-    before.push("--gateway-mac", arpGatewayMac.trim());
-  }
+    // opzionali: solo se abilitati
+    if (arpVictimMacEnabled && arpVictimMac.trim()) {
+      before.push("--victim-mac", arpVictimMac.trim());
+    }
+    if (arpGatewayMacEnabled && arpGatewayMac.trim()) {
+      before.push("--gateway-mac", arpGatewayMac.trim());
+    }
 
-  if (arpCountEnabled) {
-    const v = String(arpCountValue || "0").trim();
-    before.push("--count", v);
+    if (arpCountEnabled) {
+      const v = String(arpCountValue || "0").trim();
+      before.push("--count", v);
+    }
+
+    if (arpBidir) before.push("--bidirectional");
+    before.push(arpRestore ? "--restore" : "--no-restore");
+
+    return before;
   }
-
-  if (arpBidir) before.push("--bidirectional");
-  before.push(arpRestore ? "--restore" : "--no-restore");
-
-  return before;
-}
 
   function getPingBeforeTokens(defName, opts = {}) {
     const {
@@ -324,7 +325,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
     const before = [...base];
 
     if (isLite) {
-      if (speed === "fast")   before.push("--fast");
+      if (speed === "fast") before.push("--fast");
       if (speed === "faster") before.push("--faster");
       const effectiveCount = countEnabled ? String(countValue || "10") : "100";
       before.push("-c", effectiveCount);
@@ -355,8 +356,8 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
     if (PING_BEFORE_TOKENS_BY_NAME[imageName]) return imageName;
     const short = String(imageName).split("/").pop();
     if (PING_BEFORE_TOKENS_BY_NAME[short]) return short;
-    if (short.includes("syn"))  return short.includes("lite") ? "syn-floodlite"  : "syn-flood";
-    if (short.includes("udp"))  return short.includes("lite") ? "udp-floodlite"  : "udp-flood";
+    if (short.includes("syn")) return short.includes("lite") ? "syn-floodlite" : "syn-flood";
+    if (short.includes("udp")) return short.includes("lite") ? "udp-floodlite" : "udp-flood";
     if (short.includes("icmp")) return short.includes("lite") ? "icmp-floodlite" : "icmp-flood";
     return "icmp-flood";
   }
@@ -431,24 +432,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
     setPingAText(v);
   };
 
-  const ipRegex = /^(?:25[0-5]|2[0-4]\d|1?\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/;
-  function extractTargetIPs(targets = [], attackerDomain, { allowOtherDomains = true } = {}) {
-    const ips = [];
-    targets.forEach((t) => {
-      if (!t || !t.interfaces || !Array.isArray(t.interfaces.if)) return;
-      t.interfaces.if.forEach((iface) => {
-        try {
-          if (!iface || !iface.eth || !iface.ip) return;
-          const sameDomain = iface.eth.domain === attackerDomain;
-          if ((allowOtherDomains || sameDomain)) {
-            const ipOnly = String(iface.ip).split('/')[0].trim();
-            if (ipRegex.test(ipOnly)) ips.push(ipOnly);
-          }
-        } catch {}
-      });
-    });
-    return Array.from(new Set(ips));
-  }
+
 
   function getAttackDefinition(attackName) {
     if (!Array.isArray(attacks)) return null;
@@ -456,7 +440,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
   }
 
   function resetAllParamStates() {
-    
+
     /*setExtraText("");
     setPingTimeoutEnabled(false);
     setPingTimeoutValue("1");
@@ -483,11 +467,11 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
     setArpBidir(true);
     setArpRestore(true);
     setArpVictimMacEnabled(false);
-  setArpGatewayMacEnabled(false);
+    setArpGatewayMacEnabled(false);
 
     if (selectedImage) {
-      try { updateAttackArgsBefore(selectedImage, []); } catch {}
-      try { updateAttackArgsAfter(selectedImage, []); } catch {}
+      try { updateAttackArgsBefore(selectedImage, []); } catch { }
+      try { updateAttackArgsAfter(selectedImage, []); } catch { }
     }
   }
 
@@ -512,7 +496,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
           }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   const toggleAttack = (val) => {
@@ -549,10 +533,10 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
         try {
           const currName = currAttacker?.attackImage || selectedImage || null;
           if (currName) {
-            try { updateAttackArgsBefore(currName, []); } catch (e) {}
-            try { updateAttackArgsAfter(currName, []); } catch (e) {}
+            try { updateAttackArgsBefore(currName, []); } catch (e) { }
+            try { updateAttackArgsAfter(currName, []); } catch (e) { }
           }
-        } catch (e) {}
+        } catch (e) { }
         resetAllParamStates();
         setAttackLoaded(false);
         return machinesReset;
@@ -562,10 +546,10 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
         try {
           const currName = selectedImage || null;
           if (currName) {
-            try { updateAttackArgsBefore(currName, []); } catch (e) {}
-            try { updateAttackArgsAfter(currName, []); } catch (e) {}
+            try { updateAttackArgsBefore(currName, []); } catch (e) { }
+            try { updateAttackArgsAfter(currName, []); } catch (e) { }
           }
-        } catch (e) {}
+        } catch (e) { }
         resetAllParamStates();
         setAttackLoaded(false);
         return machinesReset;
@@ -658,7 +642,7 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
       <div className="flex-grow">
         <div className="grid gap-2">
           <MachineSelector machines={machines} setTargets={setTargets} attacker={attacker} />
-          <AttackSelector type="mitm" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh}/>
+          <AttackSelector type="mitm" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh} />
         </div>
       </div>
 
@@ -673,83 +657,83 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
               return (
                 <div className="grid gap-3">
                   <div className="flex flex-wrap items-end gap-x-10 gap-y-4 mt-1">
-  <div className="flex items-end gap-2">
-    <Checkbox isSelected={arpIfaceEnabled} isDisabled>
-      <span className="font-mono text-xs whitespace-nowrap">iface</span>
-    </Checkbox>
-    <Input
-      type="text"
-      size="sm"
-      value={arpIface}
-      onChange={(e)=> setArpIface(e.target.value)}
-      onBlur={()=> selectedImage && rebuildArgs(selectedImage)}
-      className="max-w-[220px]"
-      placeholder="es. eth0"
-      isDisabled={!arpIfaceEnabled}
-    />
-  </div>
+                    <div className="flex items-end gap-2">
+                      <Checkbox isSelected={arpIfaceEnabled} isDisabled>
+                        <span className="font-mono text-xs whitespace-nowrap">iface</span>
+                      </Checkbox>
+                      <Input
+                        type="text"
+                        size="sm"
+                        value={arpIface}
+                        onChange={(e) => setArpIface(e.target.value)}
+                        onBlur={() => selectedImage && rebuildArgs(selectedImage)}
+                        className="max-w-[220px]"
+                        placeholder="es. eth0"
+                        isDisabled={!arpIfaceEnabled}
+                      />
+                    </div>
 
-  <div className="flex items-end gap-2">
-    <Checkbox isSelected={arpGatewayEnabled} isDisabled>
-      <span className="font-mono text-xs whitespace-nowrap">gateway</span>
-    </Checkbox>
-    <Input
-      type="text"
-      size="sm"
-      value={arpGateway}
-      onChange={(e)=> setArpGateway(e.target.value)}
-      onBlur={()=> selectedImage && rebuildArgs(selectedImage)}
-      className="max-w-[220px]"
-      placeholder="es. 192.168.1.1"
-      isDisabled={!arpGatewayEnabled}
-    />
-  </div>
-</div>
+                    <div className="flex items-end gap-2">
+                      <Checkbox isSelected={arpGatewayEnabled} isDisabled>
+                        <span className="font-mono text-xs whitespace-nowrap">gateway</span>
+                      </Checkbox>
+                      <Input
+                        type="text"
+                        size="sm"
+                        value={arpGateway}
+                        onChange={(e) => setArpGateway(e.target.value)}
+                        onBlur={() => selectedImage && rebuildArgs(selectedImage)}
+                        className="max-w-[220px]"
+                        placeholder="es. 192.168.1.1"
+                        isDisabled={!arpGatewayEnabled}
+                      />
+                    </div>
+                  </div>
 
                   <div className="flex flex-wrap items-end gap-x-10 gap-y-4 mt-1">
-  <div className="flex items-end gap-2">
-    <Checkbox
-      isSelected={arpVictimMacEnabled}
-      onValueChange={(v)=> { setArpVictimMacEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
-    >
-      <span className="font-mono text-xs whitespace-nowrap">victim mac</span>
-    </Checkbox>
-    <Input
-      type="text"
-      size="sm"
-      value={arpVictimMac}
-      onChange={(e)=> setArpVictimMac(e.target.value)}
-      onBlur={()=> selectedImage && rebuildArgs(selectedImage)}
-      className="max-w-[220px]"
-      placeholder="aa:bb:cc:dd:ee:ff"
-      isDisabled={!arpVictimMacEnabled}
-    />
-  </div>
+                    <div className="flex items-end gap-2">
+                      <Checkbox
+                        isSelected={arpVictimMacEnabled}
+                        onValueChange={(v) => { setArpVictimMacEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
+                      >
+                        <span className="font-mono text-xs whitespace-nowrap">victim mac</span>
+                      </Checkbox>
+                      <Input
+                        type="text"
+                        size="sm"
+                        value={arpVictimMac}
+                        onChange={(e) => setArpVictimMac(e.target.value)}
+                        onBlur={() => selectedImage && rebuildArgs(selectedImage)}
+                        className="max-w-[220px]"
+                        placeholder="aa:bb:cc:dd:ee:ff"
+                        isDisabled={!arpVictimMacEnabled}
+                      />
+                    </div>
 
-  <div className="flex items-end gap-2">
-    <Checkbox
-      isSelected={arpGatewayMacEnabled}
-      onValueChange={(v)=> { setArpGatewayMacEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
-    >
-      <span className="font-mono text-xs whitespace-nowrap">gateway mac</span>
-    </Checkbox>
-    <Input
-      type="text"
-      size="sm"
-      value={arpGatewayMac}
-      onChange={(e)=> setArpGatewayMac(e.target.value)}
-      onBlur={()=> selectedImage && rebuildArgs(selectedImage)}
-      className="max-w-[220px]"
-      placeholder="aa:bb:cc:dd:ee:ff"
-      isDisabled={!arpGatewayMacEnabled}
-    />
-  </div>
-</div>
+                    <div className="flex items-end gap-2">
+                      <Checkbox
+                        isSelected={arpGatewayMacEnabled}
+                        onValueChange={(v) => { setArpGatewayMacEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
+                      >
+                        <span className="font-mono text-xs whitespace-nowrap">gateway mac</span>
+                      </Checkbox>
+                      <Input
+                        type="text"
+                        size="sm"
+                        value={arpGatewayMac}
+                        onChange={(e) => setArpGatewayMac(e.target.value)}
+                        onBlur={() => selectedImage && rebuildArgs(selectedImage)}
+                        className="max-w-[220px]"
+                        placeholder="aa:bb:cc:dd:ee:ff"
+                        isDisabled={!arpGatewayMacEnabled}
+                      />
+                    </div>
+                  </div>
 
                   <div className="flex items-end gap-3">
                     <Checkbox
                       isSelected={arpCountEnabled}
-                      onValueChange={(v)=> { setArpCountEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
+                      onValueChange={(v) => { setArpCountEnabled(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
                     >
                       <span className="font-mono text-xs whitespace-nowrap">count (seconds)</span>
                     </Checkbox>
@@ -760,8 +744,8 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
                       size="sm"
                       label="default 5s"
                       value={arpCountValue}
-                      onChange={(e)=> setArpCountValue(e.target.value)}
-                      onBlur={()=> selectedImage && rebuildArgs(selectedImage)}
+                      onChange={(e) => setArpCountValue(e.target.value)}
+                      onBlur={() => selectedImage && rebuildArgs(selectedImage)}
                       isDisabled={!arpCountEnabled}
                       placeholder="default 5"
                       className="max-w-[160px]"
@@ -771,25 +755,25 @@ const [arpGatewayMacEnabled, setArpGatewayMacEnabled] = useState(false);
                   <div className="flex items-center gap-6">
                     <Checkbox
                       isSelected={arpBidir}
-                      onValueChange={(v)=> { setArpBidir(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
+                      onValueChange={(v) => { setArpBidir(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
                     >
                       <span className="font-mono text-xs">bidirectional</span>
                     </Checkbox>
 
                     <Checkbox
                       isSelected={arpRestore}
-                      onValueChange={(v)=> { setArpRestore(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
+                      onValueChange={(v) => { setArpRestore(Boolean(v)); selectedImage && rebuildArgs(selectedImage); }}
                     >
                       <span className="font-mono text-xs">restore (unchecked = --no-restore)</span>
                     </Checkbox>
                   </div>
 
-                  
+
                 </div>
               );
             }
 
-            
+
 
             // default: textbox generica
             return (

@@ -28,6 +28,10 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
+#Push 'start attack' message to collector
+export SMOLOKI_BASE_ENDPOINT="http://10.1.0.254:3100"
+smoloki '{"job":"arp_scan","level":"info"}' '{"message":"Start arp scan attack"}'
+
 # Funzioni di validazione (semplici, pratiche)
 is_ipv4() {
   echo "$1" | awk -F'.' 'NF==4{for(i=1;i<=4;i++) if($i<0||$i>255) exit 1; exit 0} {exit 1}'

@@ -38,12 +38,17 @@ if (
   execSync('npm run postinstall');
 }
 
+
+const isWebOnly = process.env.WEB_ONLY === 'true';
+
 const configuration: webpack.Configuration = {
   devtool: 'inline-source-map',
 
   mode: 'development',
 
-  target: ['web', 'electron-renderer'],
+  target: isWebOnly ? 'web' : ['web', 'electron-renderer'],
+
+  externals: isWebOnly ? [] : undefined,
 
   entry: [
     `webpack-dev-server/client?http://localhost:${port}/dist`,
@@ -87,12 +92,12 @@ const configuration: webpack.Configuration = {
           {
             loader: 'postcss-loader',
             options: {
-            postcssOptions: {
-              plugins:
-                [
-                  require('tailwindcss'),
-                  require('autoprefixer'),
-                ]
+              postcssOptions: {
+                plugins:
+                  [
+                    require('tailwindcss'),
+                    require('autoprefixer'),
+                  ]
               },
             },
           },
@@ -134,12 +139,12 @@ const configuration: webpack.Configuration = {
     ...(skipDLLs
       ? []
       : [
-          new webpack.DllReferencePlugin({
-            context: webpackPaths.dllPath,
-            manifest: require(manifest),
-            sourceType: 'var',
-          }),
-        ]),
+        new webpack.DllReferencePlugin({
+          context: webpackPaths.dllPath,
+          manifest: require(manifest),
+          sourceType: 'var',
+        }),
+      ]),
 
     new webpack.NoEmitOnErrorsPlugin(),
 
@@ -187,6 +192,7 @@ const configuration: webpack.Configuration = {
 
   devServer: {
     port,
+    host: '127.0.0.1',
     compress: true,
     hot: true,
     headers: { 'Access-Control-Allow-Origin': '*' },
@@ -196,7 +202,22 @@ const configuration: webpack.Configuration = {
     historyApiFallback: {
       verbose: true,
     },
+    proxy: {
+      '/api': 'http://localhost:3001',
+      '/loki': {
+        target: 'http://localhost:3100',
+        pathRewrite: { '^/loki': '' },
+      },
+      '/socket.io': {
+        target: 'http://localhost:3001',
+        ws: true
+      }
+    },
     setupMiddlewares(middlewares) {
+      if (isWebOnly) {
+        console.log('Skipping electron spawn for web-only mode');
+        return middlewares;
+      }
       console.log('Starting preload.js builder...');
       const preloadProcess = spawn('npm', ['run', 'start:preload'], {
         shell: true,
@@ -226,4 +247,7 @@ const configuration: webpack.Configuration = {
   },
 };
 
-export default merge(baseConfig, configuration);
+export default merge(baseConfig, {
+  ...configuration,
+  externals: isWebOnly ? [] : baseConfig.externals,
+});

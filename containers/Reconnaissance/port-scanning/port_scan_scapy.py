@@ -22,6 +22,10 @@ import csv
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from scapy.all import IP, TCP, UDP, ICMP, sr1, send, conf
+import os, importlib, smoloki
+
+
+
 
 conf.verb = 0
 
@@ -154,6 +158,14 @@ def main():
     p.add_argument("targets", nargs='+', help="IP o CIDR (separati da spazi). Esempio: 192.168.0.1 10.0.0.0/30")
     args = p.parse_args()
 
+    os.environ["SMOLOKI_BASE_ENDPOINT"] = "http://10.1.0.254:3100"
+    importlib.reload(smoloki)
+    
+    smoloki.push_sync(
+        {"job": "port_scan", "level": "info"},
+        {"message": "Start port scan attack"}
+    )
+
     try:
         targets = expand_targets(args.targets)
     except Exception as e:
@@ -166,6 +178,7 @@ def main():
 
     mode = "udp" if args.udp else "tcp"
     print(f"Scan mode: {mode.upper()} | targets: {len(targets)} | ports: {len(ports)} | workers: {args.workers}")
+    output_message=""
 
     tasks = []
     for t in targets:
@@ -187,6 +200,13 @@ def main():
     open_ports = [r for r in results if r['state'] in ('open', 'open|filtered')]
     print(f"Potential open/open|filtered ports: {len(open_ports)}")
 
+    for port in open_ports:
+        output_message+=(f"{port['ip']}:{port['port']}/{port['proto']} -> {port['state']} {('('+str(port['info'])+')') if port.get('info') else ''}")
+    
+    smoloki.push_sync(
+        {"job": "port_scan", "level": "info"},
+        {"message": output_message}
+    )
     if args.output:
         if args.output.lower().endswith(".json"):
             with open(args.output, "w") as f:

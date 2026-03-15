@@ -14,7 +14,7 @@ export const backboneModel = {
   attackLoaded: false,
   attackImage: "",
   attackCommand: "",
-  bridged: false,
+  attackConfig: {},
   targets: [],
   routingSoftware: "frr",
   interfaces: {
@@ -23,9 +23,9 @@ export const backboneModel = {
       {
         eth: {
           number: 0,
-          domain: "",
+          domain: "A",
         },
-        ip: "",
+        ip: "10.0.0.0/24",
         name: "",
       },
     ],
@@ -58,7 +58,7 @@ export const backboneModel = {
     fileCounter: 0,
   },
 
- scripts: {
+  scripts: {
     startup: "",   // qui metteremo le righe di scripting
   },
 
@@ -67,6 +67,11 @@ export const backboneModel = {
     rest: true,
     topology: true,
     custom: "",
+  },
+  tls: {
+    in_addr: "0.0.0.0:50000",
+    out_addr: "10.0.0.2:50001",
+    verify: "0",
   },
   routing: {
     rip: {
@@ -84,8 +89,8 @@ export const backboneModel = {
       rip: false,
       bgp: false,
       if: [{
-          cost: 0,
-          interface: null
+        cost: 0,
+        interface: null
       }],
       network: [""],
       area: [""],
@@ -125,7 +130,7 @@ export const attacksModel = [
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
-    
+
   },
   {
     name: "icmp-scanning",
@@ -255,7 +260,7 @@ export const attacksModel = [
     }
   },
 
-{
+  {
     name: "icmp-floodlite",
     displayName: "ICMP Flood lite",
     category: "dos",
@@ -341,7 +346,7 @@ export const attacksModel = [
     }
   },
 
-{
+  {
     name: "icmp-pinglite",
     displayName: "ICMP Ping lite",
     category: "ping",
@@ -383,7 +388,7 @@ export const attacksModel = [
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
-  
+
   {
     name: "modbus-writecoil",
     displayName: "Modbus Write Coil",
@@ -412,15 +417,15 @@ export const attacksModel = [
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
   },
-   {
+  {
     name: "packet-sniffing",
     displayName: "Packet Sniffing",
     category: "sniffing",
     attackLoaded: false,
     image: "",
     isImage: false,
-    script: "",
-    entrypoint: "",
+    script: "/usr/local/bin/sniffing.sh",
+    entrypoint: "bash",
     parameters: {
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
@@ -453,5 +458,29 @@ export const attacksModel = [
       argsBeforeTargets: [],    // nessun flag prima degli IP
       argsAfterTargets: []      // nessun flag dopo gli IP
     }
+  },
+  {
+    name: "modbustcp-injection",
+    displayName: "Modbus-TCP injection",
+    category: "injection",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+  },
+  {
+    name: "crack-plc",
+    displayName: "Crack PLC",
+    category: "injection",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+  },
+  {
+    name: "modbustcp-recon",
+    displayName: "Modbus-TCP Recon",
+    category: "Reconnaissance",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
   }
 ]

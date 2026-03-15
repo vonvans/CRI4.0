@@ -1,0 +1,13 @@
+[Unit]
+Description=ICR
+After=network.target
+
+[Service]
+User=icr
+Group=icr
+WorkingDirectory=/home/icr/CRI4.0
+ExecStart=/home/icr/CRI4.0/run_webui.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

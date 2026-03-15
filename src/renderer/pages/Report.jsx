@@ -19,18 +19,20 @@ function LogInsightsPage() {
   const [generalSearch, setGeneralSearch] = useState("");
   const [timeRange, setTimeRange] = useState("last_30_minutes");
   const [customTime, setCustomTime] = useState({ start: "", end: "" });
-  const [isLive, setIsLive] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [expandedRow, setExpandedRow] = useState(null);
 
-  const ws = useRef(null);
-  const reconnectTimer = useRef(null);
+  const toggleRow = (id) => {
+    setExpandedRow(expandedRow === id ? null : id);
+  };
 
   // Escapes special characters for regex in LogQL
   const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const escDQ = (s) => s.replace(/"/g, '\\"');
 
-  // Builds Loki's WebSocket Tail URL based on filters
-  const buildLokiTailUrl = () => {
+  // Builds Loki's HTTP query URL based on filters
+  const buildLokiQueryUrl = () => {
     // Base selector with at least one non-empty matcher (required by Loki 3.x)
     // Use a label you know exists (e.g., job, host, env, service_name)
     const matchers = ['job=~".+"'];
@@ -56,103 +58,93 @@ function LogInsightsPage() {
     }
 
     const logqlQuery = `${selector}${pipeline}`;
-    const url = `ws://localhost:3100/loki/api/v1/tail?query=${encodeURIComponent(
-      logqlQuery
-    )}&limit=200`;
-    return url;
+
+    const { start, end } = getStartEndSeconds();
+    const startNs = start + "000000000";
+    const endNs = end + "000000000";
+
+    const params = new URLSearchParams({
+      query: logqlQuery,
+      limit: 200,
+      direction: "BACKWARD",
+      start: startNs,
+      end: endNs
+    });
+
+    return `/api/loki-query?${params.toString()}`;
   };
 
-  // Opens the WS connection to Loki Tail
-  const openWebSocket = () => {
+  const fetchLogs = async () => {
+    setIsFetching(true);
     try {
-      if (ws.current) {
-        ws.current.onopen = null;
-        ws.current.onmessage = null;
-        ws.current.onerror = null;
-        ws.current.onclose = null;
-        try {
-          ws.current.close();
-        } catch {}
+      const url = buildLokiQueryUrl();
+      let res = await fetch(url);
+
+      // Fallback: if 404 (route not present), try a proxy-mounted direct path
+      if (res.status === 404) {
+        const queryParams = url.split("?")[1];
+        res = await fetch(`/loki/api/v1/query_range?${queryParams}`);
       }
 
-      const url = buildLokiTailUrl();
-      const socket = new WebSocket(url);
+      if (!res.ok) throw new Error("Failed to fetch logs");
+      const data = await res.json();
 
-      socket.onopen = () => {
-        setIsLive(true);
-      };
+      if (data.data && data.data.result) {
+        const incoming = data.data.result.flatMap((stream) =>
+          stream.values.map(([ts, line]) => {
+            const ns = Number(ts); // ns epoch
+            const ms = Math.floor(ns / 1e6);
+            const level = (stream.stream.level || "info").toLowerCase();
 
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.streams) {
-            setLogs((prev) => {
-              const incoming = data.streams.flatMap((stream) =>
-                stream.values.map(([ts, line]) => {
-                  const ns = Number(ts); // ns epoch
-                  const ms = Math.floor(ns / 1e6);
-                  const level = (stream.stream.level || "info").toLowerCase();
-                  return {
-                    id: `${ts}-${Math.random()}`,
-                    timestamp: new Date(ms),
-                    message: line,
-                    hostname: stream.stream.host || "N/A",
-                    severity:
-                      level === "warn"
-                        ? "WARNING"
-                        : (level || "info").toUpperCase(), // INFO/WARNING/ERROR
-                  };
-                })
-              );
-              // Add new logs to the top and limit to 500
-              return [...incoming.reverse(), ...prev].slice(0, 500);
-            });
-          }
-        } catch (e) {
-          // Ignore non-JSON frames
-        }
-      };
+            let message = line;
+            try {
+              const jsonLine = JSON.parse(line);
+              if (jsonLine.log) {
+                message = jsonLine.log;
+              }
+            } catch (e) {
+              // Not a JSON string or doesn't have .log property
+            }
 
-      const scheduleReconnect = () => {
-        setIsLive(false);
-        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = setTimeout(() => {
-          openWebSocket();
-        }, 1200); // Simple backoff
-      };
+            if (typeof message === "string" && message.startsWith("message=")) {
+              message = message.slice(8);
+            }
 
-      socket.onerror = () => scheduleReconnect();
-      socket.onclose = () => scheduleReconnect();
-
-      ws.current = socket;
+            return {
+              id: `${ts}-${Math.random()}`,
+              timestamp: new Date(ms),
+              message: message,
+              hostname: stream.stream.host || "N/A",
+              severity:
+                level === "warn"
+                  ? "WARNING"
+                  : (level || "info").toUpperCase(), // INFO/WARNING/ERROR
+            };
+          })
+        );
+        // Sort descending by timestamp
+        incoming.sort((a, b) => b.timestamp - a.timestamp);
+        // Limit to 500
+        setLogs(incoming.slice(0, 500));
+      } else {
+        setLogs([]);
+      }
     } catch (e) {
-      setIsLive(false);
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      reconnectTimer.current = setTimeout(() => {
-        openWebSocket();
-      }, 1500);
+      console.error(e);
+      setLogs([]);
+    } finally {
+      setIsFetching(false);
     }
   };
 
-  // Connect/reconnect when filters change
+  // Fetch when filters change
   useEffect(() => {
-    openWebSocket();
-    return () => {
-      if (reconnectTimer.current) {
-        clearTimeout(reconnectTimer.current);
-      }
-      if (ws.current) {
-        try {
-          ws.current.close();
-        } catch {}
-      }
-    };
+    fetchLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostnameSearch, logSearch, severityFilter, generalSearch]);
 
   const handleSearch = () => {
-    setLogs([]);
-    // Changing filters will trigger the useEffect -> WS reconnection
+    fetchLogs();
   };
 
   const handleClearFilters = () => {
@@ -165,8 +157,8 @@ function LogInsightsPage() {
     setLogs([]);
   };
 
-  // Compute start/end in *nanoseconds* for Loki delete API
-  const getStartEndNs = () => {
+  // Compute start/end in *seconds* for Loki delete API
+  function getStartEndSeconds() {
     const nowMs = Date.now();
     let startMs = nowMs - 30 * 60 * 1000; // default 30 minutes
     let endMs = nowMs;
@@ -184,9 +176,9 @@ function LogInsightsPage() {
       if (!Number.isNaN(e)) endMs = e;
     }
 
-    // Convert to nanoseconds (string to avoid precision issues in very large numbers)
-    const toNs = (ms) => `${BigInt(Math.floor(ms)) * 1000000n}`;
-    return { startNs: toNs(startMs), endNs: toNs(endMs) };
+    // Convert to seconds (string to avoid precision issues)
+    const toSec = (ms) => String(Math.floor(ms / 1000));
+    return { start: toSec(startMs), end: toSec(endMs) };
   };
 
   // Very broad selector for deletion (must not be empty). Adjust label to one that always exists in your tenant.
@@ -195,41 +187,7 @@ function LogInsightsPage() {
   const handleCleanLogs = async () => {
     setIsCleaning(true);
     try {
-      const { startNs, endNs } = getStartEndNs();
-
-      const payload = {
-        query: broadDeleteSelector,
-        start: startNs,
-        end: endNs,
-      };
-
-      // 1) Try custom API route (Next.js/Express). Avoids CORS.
-      let res = await fetch("/api/loki-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      // 2) Fallback: if 404 (route not present), try a proxy-mounted direct path
-      // e.g., Vite devServer proxy mapping "/loki" -> "http://localhost:3100"
-      if (res.status === 404) {
-        const params = new URLSearchParams({
-          query: payload.query,
-          start: payload.start,
-          end: payload.end,
-        });
-        res = await fetch(`/loki/api/v1/delete?${params.toString()}`, {
-          method: "POST",
-        });
-      }
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Loki delete failed (${res.status}): ${text}`);
-      }
-
       setLogs([]);
-      openWebSocket();
     } catch (err) {
       console.error(err);
       alert(`Error while submitting delete: ${err.message}`);
@@ -250,11 +208,10 @@ function LogInsightsPage() {
     <div className="min-h-screen p-4 bg-gray-900 text-white">
       <div className="flex justify-end items-center mb-6">
         <span
-          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-            isLive ? "bg-green-500" : "bg-red-500"
-          }`}
+          className={`px-3 py-1 rounded-full text-sm font-semibold ${isFetching ? "bg-blue-500" : "bg-gray-600"
+            }`}
         >
-          {isLive ? "Live Stream" : "Offline"}
+          {isFetching ? "Fetching Logs..." : "Idle"}
         </span>
       </div>
 
@@ -270,6 +227,7 @@ function LogInsightsPage() {
               value={hostnameSearch}
               onChange={(e) => setHostnameSearch(e.target.value)}
               className="w-full"
+              aria-label="Hostname Search"
             />
           </CardBody>
         </Card>
@@ -285,6 +243,7 @@ function LogInsightsPage() {
               value={logSearch}
               onChange={(e) => setLogSearch(e.target.value)}
               className="w-full"
+              aria-label="Log Search"
             />
           </CardBody>
         </Card>
@@ -298,6 +257,7 @@ function LogInsightsPage() {
               value={severityFilter}
               onValueChange={setSeverityFilter}
               orientation="horizontal"
+              aria-label="Severity Filter"
             >
               <Radio value="info">INFO</Radio>
               <Radio value="warning">WARNING</Radio>
@@ -318,6 +278,7 @@ function LogInsightsPage() {
                 const selectedKey = Array.from(keys)[0];
                 setTimeRange(selectedKey);
               }}
+              aria-label="Time Range"
             >
               <SelectItem key="last_minute" value="last_minute">
                 Last minute
@@ -366,6 +327,7 @@ function LogInsightsPage() {
               value={generalSearch}
               onChange={(e) => setGeneralSearch(e.target.value)}
               className="w-full"
+              aria-label="General Search"
             />
           </CardBody>
         </Card>
@@ -374,6 +336,9 @@ function LogInsightsPage() {
       <div className="flex justify-end gap-2 mb-4">
         <Button color="primary" onClick={handleSearch}>
           Search
+        </Button>
+        <Button color="success" isLoading={isFetching} onClick={fetchLogs}>
+          Refresh
         </Button>
         <Button color="danger" onClick={handleClearFilters}>
           Clear Filters
@@ -404,26 +369,44 @@ function LogInsightsPage() {
           <tbody className="divide-y divide-gray-700">
             {currentLogs.length > 0 ? (
               currentLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-2 00">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {log.hostname}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        severityColors[log.severity] || "bg-gray-600"
-                      }`}
-                    >
-                      {log.severity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-300 max-w-sm truncate">
-                    {log.message}
-                  </td>
-                </tr>
+                <React.Fragment key={log.id}>
+                  <tr
+                    className="hover:bg-gray-700 cursor-pointer transition-colors"
+                    onClick={() => toggleRow(log.id)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {log.hostname}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityColors[log.severity] || "bg-gray-600"
+                          }`}
+                      >
+                        {log.severity}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-300 max-w-sm truncate">
+                      {log.message}
+                    </td>
+                  </tr>
+                  {expandedRow === log.id && (
+                    <tr className="bg-gray-750 border-b border-gray-700">
+                      <td
+                        colSpan="4"
+                        className="px-6 py-4 text-sm text-gray-200 whitespace-pre-wrap break-words bg-gray-800/50"
+                      >
+                        {typeof log.message === "string"
+                          ? log.message.split(/\\n|\n/).map((line, i) => (
+                            <div key={i}>{line}</div>
+                          ))
+                          : log.message}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))
             ) : (
               <tr>
@@ -431,7 +414,7 @@ function LogInsightsPage() {
                   colSpan="4"
                   className="px-6 py-4 text-center text-sm text-gray-400"
                 >
-                  Waiting for logs...
+                  Refresh to see logs
                 </td>
               </tr>
             )}

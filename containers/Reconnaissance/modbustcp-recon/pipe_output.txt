@@ -1,0 +1,1 @@
+./test_pipe.sh: line 2: modtester: command not found

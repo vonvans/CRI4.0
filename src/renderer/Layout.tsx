@@ -4,16 +4,17 @@
 
 
 import { useState, useEffect } from 'react';
-import { useNavigate, Routes, Route, Outlet} from 'react-router-dom';
+import { useNavigate, Routes, Route, Outlet } from 'react-router-dom';
 import "tailwindcss/tailwind.css";
 import Home from "./pages/Home";
 import Topology from "./pages/Topology";
 import Attack from "./pages/Attack";
 import Logs from "./pages/Logs";
-import { Footer } from './components/Footer';
-import {NextUIProvider} from '@nextui-org/react';
+
+import { NextUIProvider } from '@nextui-org/react';
 import { AppNavbar } from './components/Navbar/AppNavbar';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { TerminalProvider } from './contexts/TerminalContext';
 import Settings from './pages/Settings';
 import { LogProvider } from './contexts/LogContext';
 import Report from './pages/Report';
@@ -31,11 +32,12 @@ export default function App() {
 
   return (
     <NextUIProvider navigate={navigate}>
-       <main className={`${darkMode ? 'dark' : 'light'} text-foreground bg-background w-full flex min-h-screen`}>
-          <div className="h-full flex-1">
-            <div className="flex h-full min-h-screen flex-col justify-between">
-              <NotificationProvider>
-                <LogProvider>
+      <main className={`${darkMode ? 'dark' : 'light'} text-foreground bg-background w-full flex min-h-screen`}>
+        <div className="h-full flex-1">
+          <div className="flex h-full min-h-screen flex-col justify-between">
+            <NotificationProvider>
+              <LogProvider>
+                <TerminalProvider>
                   <AppNavbar darkMode={darkMode} setDarkMode={setDarkMode} />
                   <div className="min-h-[calc(100vh-4rem)]">
                     <Routes>
@@ -49,12 +51,12 @@ export default function App() {
                       </Route>
                     </Routes>
                   </div>
-                  <Footer />
-                </LogProvider>
-              </NotificationProvider>
-            </div>
+                </TerminalProvider>
+              </LogProvider>
+            </NotificationProvider>
           </div>
-        </main>
+        </div>
+      </main>
     </NextUIProvider>
   );
 }

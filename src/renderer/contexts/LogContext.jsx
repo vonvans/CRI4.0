@@ -1,6 +1,7 @@
 /* eslint-disable react/jsx-no-constructed-context-values */
 /* eslint-disable react/prop-types */
 import React, { createContext, useState, useEffect } from 'react';
+import { api } from '../api';
 
 // Create the context
 export const LogContext = createContext();
@@ -10,8 +11,8 @@ export function LogProvider({ children }) {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    const unsubscribe = window.electron.ipcRenderer.on('log-message', (log) => {
-      setLogs((prevLogs) => [...prevLogs, log.message].slice(-1000));
+    const unsubscribe = api.subscribeToLogs((level, message) => {
+      setLogs((prevLogs) => [...prevLogs, message].slice(-1000));
     });
 
     return () => {

@@ -8,7 +8,11 @@ RUN wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor > /etc/apt/keyr
     rm -rf /var/lib/apt/lists/*
 
 # (ok) rimuovi l’opzione problematica dal config di default
-RUN sed -i '/^[[:space:]]*enable_multi_variant_queries:/d' /etc/loki/config.yml
+# Copy custom configuration
+COPY loki-config.yml /etc/loki/config.yml
+
+# Check configuration (optional but good for debugging build)
+RUN cat /etc/loki/config.yml
 
 # Assicurati che Loki ascolti su tutte le interfacce
 # (se il file già lo fa, questa riga non serve; in alternativa puoi passarlo come flag)

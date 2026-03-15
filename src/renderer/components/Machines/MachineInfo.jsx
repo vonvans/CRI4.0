@@ -6,7 +6,6 @@
 import { useState, useEffect } from "react";
 import { RadioGroup, Radio } from "@nextui-org/radio";
 import { Input } from "@nextui-org/input";
-import { Switch } from "@nextui-org/switch";
 import { Accordion, AccordionItem } from "@nextui-org/react";
 
 export function MachineInfo({ id, machine, machines, setMachines }) {
@@ -45,24 +44,11 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
               })
             }
           />
-          <div className="mt-2">
-            <Switch
-              isSelected={!!machine.bridged}
-              onValueChange={(val) =>
-                setMachines((ms) =>
-                  ms.map((m) => (m.id === machine.id ? { ...m, bridged: val } : m))
-                )
-              }
-            >
-              Online (bridged)
-            </Switch>
-          </div>
         </div>
 
         <div className="row-span-7">
           <Accordion
             selectionMode="multiple"
-            defaultExpandedKeys={["general", "attack", "defence", "industrial", "other"]}
             className="mt-2"
           >
             {/* GENERAL */}
@@ -102,8 +88,8 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
               </RadioGroup>
             </AccordionItem>
 
-            {/* DEFENCE */}
-            <AccordionItem key="defence" aria-label="Defence" title="Defence">
+            {/* DEFENSE */}
+            <AccordionItem key="defense" aria-label="Defense" title="Defense">
               <RadioGroup
                 color="primary"
                 value={machine.type}
@@ -115,6 +101,9 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
                 }
               >
                 <Radio value="ngfw">NGFW Appliance</Radio>
+                <Radio value="tls_termination_proxy">TLS termination proxy</Radio>
+
+
               </RadioGroup>
             </AccordionItem>
 
@@ -130,6 +119,9 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
                   })
                 }
               >
+                <Radio value="engine">Engine</Radio>
+                <Radio value="fan">Fan</Radio>
+                <Radio value="temperature_sensor">Temperature sensor</Radio>
                 <Radio value="rejector">Rejector</Radio>
                 <Radio value="scada">Scada controller</Radio>
                 <Radio value="apg">Abstract piece generator</Radio>
@@ -159,26 +151,7 @@ export function MachineInfo({ id, machine, machines, setMachines }) {
                 <Radio value="other">Other</Radio>
               </RadioGroup>
 
-              {machine.type === "other" && (
-                <div className="mt-2">
-                  <Input
-                    type="text"
-                    label="Image Name"
-                    variant="underlined"
-                    placeholder="example p4"
-                    value={machine.other?.image ?? ""}
-                    onValueChange={(value) =>
-                      handleChange(value, {
-                        ...machine,
-                        other: {
-                          ...(machine.other ?? {}),
-                          image: value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-              )}
+
             </AccordionItem>
           </Accordion>
         </div>

@@ -25,7 +25,7 @@ RUN apt-get update && \
       sudo \
       iputils-ping \
       gcc && \
-    pip3 install --no-cache-dir --break-system-packages scapy  && \
+    pip3 install --no-cache-dir --break-system-packages scapy smoloki requests && \
     # rendi eseguibili gli script e crea link utili (usa nomi coerenti)
 
     chmod +x /usr/local/bin/port_scan_scapy.py || true && \

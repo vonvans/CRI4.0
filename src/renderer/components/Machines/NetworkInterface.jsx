@@ -10,22 +10,25 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable prettier/prettier */
 import { useState, useEffect } from "react";
-import {RadioGroup, Radio} from "@nextui-org/radio";
-import {Input} from "@nextui-org/input";
-import {Divider} from "@nextui-org/divider";
-import {Textarea} from "@nextui-org/input";
-import {Button} from "@nextui-org/button";
-import {PlusSymbol} from '../Symbols/PlusSymbol';
-import {MinusSymbol} from '../Symbols/MinusSymbol';
+import { RadioGroup, Radio } from "@nextui-org/radio";
+import { Input } from "@nextui-org/input";
+import { Divider } from "@nextui-org/divider";
+import { Textarea } from "@nextui-org/input";
+import { Button } from "@nextui-org/button";
+import { PlusSymbol } from '../Symbols/PlusSymbol';
+import { MinusSymbol } from '../Symbols/MinusSymbol';
+import StartupScriptModal from "./StartupScriptModal";
 
-export function NetworkInterface({machine, machines, setMachines}) {
-    function addInterface(){
+export function NetworkInterface({ machine, machines, setMachines }) {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    function addInterface() {
         setMachines(() => (
             machines.map(m => {
-                if (m.id == machine.id){
+                if (m.id == machine.id) {
                     return {
                         ...m,
-                        interfaces:{
+                        interfaces: {
                             ...m.interfaces,
                             if: [
                                 ...m.interfaces.if,
@@ -57,10 +60,10 @@ export function NetworkInterface({machine, machines, setMachines}) {
         ))
     }
 
-    function removeInterface(){
+    function removeInterface() {
         setMachines(() => (
             machines.map(m => {
-                if (m.id == machine.id){
+                if (m.id == machine.id) {
                     return {
                         ...m,
                         interfaces: {
@@ -76,16 +79,16 @@ export function NetworkInterface({machine, machines, setMachines}) {
         ))
     }
 
-    function handleChange(e, index, data){
+    function handleChange(e, index, data) {
         setMachines((machines) => (
             machines.map(m => {
-                if (m.id == machine.id){
+                if (m.id == machine.id) {
                     return {
                         ...m,
                         interfaces: {
                             ...m.interfaces,
                             if: m.interfaces.if.map((i) => {
-                                if (i.eth.number == index){
+                                if (i.eth.number == index) {
                                     return data
                                 } else {
                                     return i
@@ -100,138 +103,145 @@ export function NetworkInterface({machine, machines, setMachines}) {
         ))
     }
 
-    function handleScriptChange(e){
-            setMachines((machines) => (
-                machines.map(m => {
-                    if (m.id == machine.id){
-                        return {
-                            ...m,
-                            interfaces: {
-                                ...m.interfaces,
-                                free: e.target.value
-                            },
-                            scripts: {
-                                ...(m.scripts ?? {}),   // backward-compat se manca
-                                startup: e.target.value,
-                            }
-
+    function handleScriptChange(e) {
+        setMachines((machines) => (
+            machines.map(m => {
+                if (m.id == machine.id) {
+                    return {
+                        ...m,
+                        interfaces: {
+                            ...m.interfaces,
+                            free: e.target.value
+                        },
+                        scripts: {
+                            ...(m.scripts ?? {}),   // backward-compat se manca
+                            startup: e.target.value,
                         }
-                    } else {
-                        return m
+
                     }
-                })
-            ))
+                } else {
+                    return m
+                }
+            })
+        ))
     }
 
-    const IsSwitch = ({machine}) => {
+    const IsSwitch = ({ machine }) => {
 
     }
 
-    const IsController = ({machine}) => {
+    const IsController = ({ machine }) => {
 
     }
 
 
     return (
         <div className="h-full">
+            <StartupScriptModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                machineName={machine.name}
+                value={machine.scripts?.startup || ""}
+                onChange={(e) => handleScriptChange(e)}
+            />
             <div className="grid content-start gap-2">
                 <div>
                     {(machine.type == "controller" || machine.type == "switch") && (
                         <p className="p-2 text-text/50">Connection between switches and controller is automatically configured</p>
                     ) || (
-                        <div className="grid gap-2">
-                            <div className="grid grid-cols-2 grid-rows-1 gap-2">
-                            <Button onClick={addInterface} aria-label="Add Interface" size="sm" color="success">
-                                    <PlusSymbol fill="white" size={22} />
-                            </Button>
-                            <Button isDisabled={machine.interfaces.counter > 1 ? false : true} onClick={removeInterface} aria-label="Remove Interface" size="sm" color="danger">
-                                    <MinusSymbol fill="white" size={22} />
-                            </Button>
-                        </div>
-                        <div className="grid gap-2">
-                            {machines.find((m) => m.id === machine.id)
-                            .interfaces.if.map((i, index) => (
-                                <div className="grid gap-2" key={index}>
-                                    <Input
-                                        type="text"
-                                        variant="flat"
-                                        label={`eth${index}`}
-                                        placeholder="A"
-                                        value={i.eth.domain || ""}
-                                        onChange={(e) => handleChange(e, index, {
-                                            ...i,
-                                            eth: {
-                                                ...i.eth,
-                                                domain: e.target.value
-                                            }
-                                        })}
-                                    />
-                                    <Input
-                                        type="text"
-                                        variant="flat"
-                                        label="IP Address/Net"
-                                        placeholder="0.0.0.0/0"
-                                        value={i.ip || ""}
-                                        onChange={(e) => handleChange(e, index, {
-                                            ...i,
-                                            ip: e.target.value
-                                        })}
-                                    />
-                                    <Input
-                                        type="text"
-                                        variant="flat"
-                                        label="Complete DNS Name"
-                                        placeholder="www.x.y or ROOT-SERVER"
-                                        value={i.name || ""}
-                                        onChange={(e) => handleChange(e, index, {
-                                            ...i,
-                                            name: e.target.value
-                                        })}
-                                    />
-                                    <Divider />
+                            <div className="grid gap-2">
+                                <div className="grid grid-cols-2 grid-rows-1 gap-2">
+                                    <Button onClick={addInterface} aria-label="Add Interface" size="sm" color="success">
+                                        <PlusSymbol fill="white" size={22} />
+                                    </Button>
+                                    <Button isDisabled={machine.interfaces.counter > 1 ? false : true} onClick={removeInterface} aria-label="Remove Interface" size="sm" color="danger">
+                                        <MinusSymbol fill="white" size={22} />
+                                    </Button>
                                 </div>
-                            ))}
-                        </div>
-                        </div>
-                    )}
+                                <div className="grid gap-2">
+                                    {machines.find((m) => m.id === machine.id)
+                                        .interfaces.if.map((i, index) => (
+                                            <div className="grid gap-2" key={index}>
+                                                <Input
+                                                    type="text"
+                                                    variant="flat"
+                                                    label={`eth${index}`}
+                                                    placeholder="A"
+                                                    value={i.eth.domain || ""}
+                                                    onChange={(e) => handleChange(e, index, {
+                                                        ...i,
+                                                        eth: {
+                                                            ...i.eth,
+                                                            domain: e.target.value
+                                                        }
+                                                    })}
+                                                />
+                                                <Input
+                                                    type="text"
+                                                    variant="flat"
+                                                    label="IP Address/Net"
+                                                    placeholder="0.0.0.0/0"
+                                                    value={i.ip || ""}
+                                                    onChange={(e) => handleChange(e, index, {
+                                                        ...i,
+                                                        ip: e.target.value
+                                                    })}
+                                                />
+                                                <Input
+                                                    type="text"
+                                                    variant="flat"
+                                                    label="Complete DNS Name"
+                                                    placeholder="www.x.y or ROOT-SERVER"
+                                                    value={i.name || ""}
+                                                    onChange={(e) => handleChange(e, index, {
+                                                        ...i,
+                                                        name: e.target.value
+                                                    })}
+                                                />
+                                                <Divider />
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
                 </div>
                 <div>
                     {(machine.type == "switch") && (
                         <div className="grid gap-2">
                             <div className="grid grid-cols-2 grid-rows-1 gap-2">
-                            <Button onClick={addInterface} aria-label="Add Interface" size="sm" color="success">
+                                <Button onClick={addInterface} aria-label="Add Interface" size="sm" color="success">
                                     <PlusSymbol fill="white" size={22} />
-                            </Button>
-                            <Button isDisabled={machine.interfaces.counter > 1 ? false : true} onClick={removeInterface} aria-label="Remove Interface" size="sm" color="danger">
+                                </Button>
+                                <Button isDisabled={machine.interfaces.counter > 1 ? false : true} onClick={removeInterface} aria-label="Remove Interface" size="sm" color="danger">
                                     <MinusSymbol fill="white" size={22} />
-                            </Button>
-                        </div>
-                        <div className="grid gap-2">
-                            {machines.find((m) => m.id === machine.id)
-                            .interfaces.if.map((i, index) => (
-                                <div className="grid gap-2" key={index}>
-                                    <Input
-                                    type="text"
-                                    variant="flat"
-                                    label={`eth${index}`}
-                                    placeholder="A"
-                                    value={i.eth.domain || ""}
-                                    onChange={(e) => handleChange(e, index, {
-                                        ...i,
-                                        eth: {
-                                            ...i.eth,
-                                            domain: e.target.value
-                                        }
-                                    })}
-                                />
-                                </div>
-                            ))}
-                        </div>
+                                </Button>
+                            </div>
+                            <div className="grid gap-2">
+                                {machines.find((m) => m.id === machine.id)
+                                    .interfaces.if.map((i, index) => (
+                                        <div className="grid gap-2" key={index}>
+                                            <Input
+                                                type="text"
+                                                variant="flat"
+                                                label={`eth${index}`}
+                                                placeholder="A"
+                                                value={i.eth.domain || ""}
+                                                onChange={(e) => handleChange(e, index, {
+                                                    ...i,
+                                                    eth: {
+                                                        ...i.eth,
+                                                        domain: e.target.value
+                                                    }
+                                                })}
+                                            />
+                                        </div>
+                                    ))}
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
-            <div className="row-span-1 mt-2">
+            <div className="row-span-1 mt-2 relative">
                 <Textarea
                     type="text"
                     variant="flat"
@@ -241,6 +251,15 @@ export function NetworkInterface({machine, machines, setMachines}) {
                     //value={machine.interfaces.free || ""}
                     onChange={handleScriptChange}
                 />
+                <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    className="absolute top-2 right-2 z-10"
+                    onClick={() => setIsModalOpen(true)}
+                >
+                    ↗
+                </Button>
             </div>
         </div>
     )

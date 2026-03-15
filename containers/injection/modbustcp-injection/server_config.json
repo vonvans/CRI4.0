@@ -1,0 +1,19 @@
+{
+  "server": {
+    "listenerAddress": "0.0.0.0",
+    "listenerPort": 502,
+    "protocol": "TCP",
+    "logging": {
+      "logLevel": "INFO",
+      "format": "%(asctime)s - %(levelname)s - %(message)s"
+    },
+    "tlsParams": {}
+  },
+  "registers": {
+    "initializeUndefinedRegisters": true,
+    "coils": {},
+    "holdingRegister": {},
+    "discreteInput": {},
+    "inputRegister": {}
+  }
+}

@@ -8,30 +8,30 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable import/no-duplicates */
 /* eslint-disable prettier/prettier */
-import {Button} from "@nextui-org/button";
+import { Button } from "@nextui-org/button";
 import { Input } from "@nextui-org/react";
 import { Textarea } from "@nextui-org/react";
-import {PlusSymbol} from '../../Symbols/PlusSymbol';
-import {MinusSymbol} from '../../Symbols/MinusSymbol';
+import { PlusSymbol } from '../../Symbols/PlusSymbol';
+import { MinusSymbol } from '../../Symbols/MinusSymbol';
 
-export function OtherFunctions({machine, machines, setMachines}) {
-    function handleChange(e, index, data){
+export function OtherFunctions({ machine, machines, setMachines }) {
+    function handleChange(e, index, data) {
         setMachines(machines.map((m) => {
-            if (m.id === machine.id){
+            if (m.id === machine.id) {
                 return {
                     ...m,
                     other: data
                 }
-            // eslint-disable-next-line no-else-return
+                // eslint-disable-next-line no-else-return
             } else {
                 return m
             }
         }))
     }
 
-    function addFile(e, data){
+    function addFile(e, data) {
         setMachines(machines.map((m) => {
-            if (m.id === machine.id){
+            if (m.id === machine.id) {
                 return {
                     ...m,
                     other: {
@@ -46,16 +46,16 @@ export function OtherFunctions({machine, machines, setMachines}) {
                         fileCounter: m.other.fileCounter + 1
                     }
                 }
-            // eslint-disable-next-line no-else-return
+                // eslint-disable-next-line no-else-return
             } else {
                 return m
             }
         }))
     }
 
-    function removeFile(e, data){
+    function removeFile(e, data) {
         setMachines(machines.map((m) => {
-            if (m.id === machine.id){
+            if (m.id === machine.id) {
                 return {
                     ...m,
                     other: {
@@ -73,12 +73,36 @@ export function OtherFunctions({machine, machines, setMachines}) {
     return (
         <div>
             <div className="grid gap-2">
+                <Input
+                    type="text"
+                    label="Image Name"
+                    variant="flat"
+                    placeholder="example p4"
+                    value={machine.other?.image ?? ""}
+                    onValueChange={(value) =>
+                        setMachines(machines.map((m) => {
+                            if (m.id === machine.id) {
+                                return {
+                                    ...m,
+                                    other: {
+                                        ...(m.other ?? {}),
+                                        image: value,
+                                    },
+                                };
+                            } else {
+                                return m;
+                            }
+                        }))
+                    }
+                />
+            </div>
+            <div className="grid gap-2 mt-2">
                 <div className="grid grid-cols-5 grid-rows-1 gap-2">
                     <Button className="col-span-4" onClick={addFile} aria-label="Add Interface" size="sm" color="success" endContent={<PlusSymbol fill="white" size={22} />}>
-                            Add File
+                        Add File
                     </Button>
                     <Button isDisabled={1 ? false : true} onClick={removeFile} aria-label="Remove Interface" size="sm" color="danger">
-                            <MinusSymbol fill="white" size={22} />
+                        <MinusSymbol fill="white" size={22} />
                     </Button>
                 </div>
                 <div className="pb-2">
@@ -97,7 +121,7 @@ export function OtherFunctions({machine, machines, setMachines}) {
                             onChange={(e) => handleChange(e, index, {
                                 ...machine.other,
                                 files: machine.other.files.map((file, idx) => {
-                                    if (idx === index){
+                                    if (idx === index) {
                                         return {
                                             ...file,
                                             name: e.target.value
@@ -117,7 +141,7 @@ export function OtherFunctions({machine, machines, setMachines}) {
                             onChange={(e) => handleChange(e, index, {
                                 ...machine.other,
                                 files: machine.other.files.map((file, idx) => {
-                                    if (idx === index){
+                                    if (idx === index) {
                                         return {
                                             ...file,
                                             contents: e.target.value

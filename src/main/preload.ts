@@ -4,15 +4,15 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 //export type Channels = 'ipc-example' | 'docker-images' | 'docker-build' | 'simulate-attack';
- export type Channels = string;
+export type Channels = string;
 
 const electronHandler = {
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);
     },
-    invoke(channel: Channels, args?: any){
-      return ipcRenderer.invoke(channel, args)
+    invoke(channel: Channels, args?: any) {
+      return ipcRenderer.invoke(channel, args);
     },
     on(channel: Channels, func: (...args: unknown[]) => void) {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>

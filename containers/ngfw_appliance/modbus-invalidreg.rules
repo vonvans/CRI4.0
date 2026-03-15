@@ -1,0 +1,1 @@
+alert tcp $HOME_NET 502 -> $EXTERNAL_NET any (msg: "Traffic detected"; sid:1000001; rev:1; byte_test:1,=,0x02,8;)

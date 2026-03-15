@@ -5,6 +5,7 @@
 /* eslint-disable prettier/prettier */
 import { useState, useEffect } from 'react';
 import { attacksModel } from '../models/model';
+import { api } from '../api';
 
 export default function useAttacks(refresh) {
     const [attacks, setAttacks] = useState(attacksModel);
@@ -12,7 +13,7 @@ export default function useAttacks(refresh) {
 
     useEffect(() => {
         setIsLoading(true);
-        window.electron.ipcRenderer.invoke('docker-images').then((images_list) => {
+        api.getDockerImages().then((images_list) => {
             const parsedImages = images_list.map(image => {
                 const [_, rest] = image.split('icr/');
                 const [name] = rest.split(':');

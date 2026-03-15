@@ -1,0 +1,20 @@
+ _______ 
+< ModTester >
+ ------- 
+           ________                    
+|\   /|	      |      ________         
+| \_/ | _  _| |	 __  __  |  __ __      
+|     |/ \/ | | /_  /_   | /_  |_\    
+|     |\_/\_/ | \__ _/   | \__ | \    
+
+
+          --=[94m[[0m[1mMODBUS[0m Pentesting Toolkit
+       --+--=[94m[[0mVersion : [92m[1m1.0[0m[0m
+       --+--=[94m[[0mModules : [92m[1m13[0m[0m
+       --+--=[94m[[0mCoder   : [92m[1mDanel Lopez[0m[0m
+          --=[94m[[0mgithub  : [92m[1mwww.github.com/dangoro94[0m[0m
+ 
+ModTester > SMOD modbus([94mdiscreteInputDiscover[0m) > SMOD modbus([94mdiscreteInputDiscover[0m) > SMOD modbus([94mdiscreteInputDiscover[0m) > SMOD modbus([94mdiscreteInputDiscover[0m) > [94m[+][0m Module Modbus Discrete Input Discover Start
+Connection unsuccessful due to the following error :
+
+SMOD modbus([94mdiscreteInputDiscover[0m) > ModTester > 

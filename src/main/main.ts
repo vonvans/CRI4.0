@@ -24,6 +24,10 @@ import fs from 'fs';
 import { promises as fsp } from "fs";
 import AdmZip from 'adm-zip';
 import { generateZipNode } from '../shared/make-node';
+import * as pty from 'node-pty';
+import { IPty } from 'node-pty';
+
+
 
 
 // In cima al file main (scope modulo)
@@ -179,6 +183,117 @@ ipcMain.handle('docker-build', async (event, arg) => {
 });*/
 
 
+ipcMain.handle('docker-inspect', async (event, machineName) => {
+  return new Promise((resolve, reject) => {
+    // 1. Find the container by name pattern (Kathara: _machineName_)
+    const findCmd = `docker ps --filter name=_${machineName}_ --format "{{.Names}}"`;
+
+    exec(findCmd, (findErr, findStdout) => {
+      if (findErr) {
+        sendLog('error', `❌ Error searching for container ${machineName}: ${findErr.message}`);
+        if (findErr.message.includes('permission denied') || findErr.message.includes('connect to the docker API')) {
+          throw new Error("Docker permission denied. Run: sudo usermod -aG docker $USER");
+        }
+        return resolve([]);
+      }
+
+      const containerName = findStdout.trim().split("\n")[0];
+      if (!containerName) {
+        // Fallback: try exact match just in case
+        exec(`docker inspect ${machineName}`, (inspectErr, inspectStdout) => {
+          if (inspectErr) {
+            sendLog('warn', `⚠️ Could not find container for ${machineName}`);
+            resolve([]);
+          } else {
+            try { resolve(JSON.parse(inspectStdout)); }
+            catch (e) { resolve([]); }
+          }
+        });
+        return;
+      }
+
+      // 2. Inspect the found container
+      exec(`docker inspect ${containerName}`, (inspectErr, inspectStdout) => {
+        if (inspectErr) {
+          sendLog('error', `❌ docker inspect failed for ${containerName}: ${inspectErr.message}`);
+          resolve([]);
+        } else {
+          try {
+            resolve(JSON.parse(inspectStdout));
+          } catch (e) {
+            sendLog('error', `❌ Failed to parse docker inspect output: ${e}`);
+            resolve([]);
+          }
+        }
+      });
+    });
+  });
+});
+
+ipcMain.handle('docker-logs', async (event, machineName) => {
+  return new Promise((resolve, reject) => {
+    sendLog('log', `🔍 docker-logs called for: ${machineName}`);
+
+    // Try to find container using the same logic as terminal.create
+    // 1. First try by ancestor (image name)
+    const ancestorCmd = `docker ps --filter ancestor=${machineName} --format "{{.Names}}"`;
+    sendLog('log', `Trying ancestor: ${ancestorCmd}`);
+
+    exec(ancestorCmd, (err1, stdout1) => {
+      const nameByAncestor = stdout1 ? stdout1.trim().split("\n")[0] : null;
+
+      if (nameByAncestor) {
+        sendLog('log', `✅ Found by ancestor: ${nameByAncestor}`);
+        exec(`docker logs ${nameByAncestor}`, (logsErr, logsStdout) => {
+          if (logsErr) {
+            sendLog('error', `❌ docker logs failed: ${logsErr.message}`);
+            resolve('');
+          } else {
+            sendLog('log', `✅ Got logs: ${logsStdout.length} chars`);
+            resolve(logsStdout);
+          }
+        });
+        return;
+      }
+
+      // 2. Fallback: try by name pattern (Kathara: _machineName_)
+      const nameCmd = `docker ps --filter name=_${machineName}_ --format "{{.Names}}"`;
+      sendLog('log', `Trying name pattern: ${nameCmd}`);
+
+      exec(nameCmd, (err2, stdout2) => {
+        const nameByPattern = stdout2 ? stdout2.trim().split("\n")[0] : null;
+
+        if (nameByPattern) {
+          sendLog('log', `✅ Found by pattern: ${nameByPattern}`);
+          exec(`docker logs ${nameByPattern}`, (logsErr, logsStdout) => {
+            if (logsErr) {
+              sendLog('error', `❌ docker logs failed: ${logsErr.message}`);
+              resolve('');
+            } else {
+              sendLog('log', `✅ Got logs: ${logsStdout.length} chars`);
+              resolve(logsStdout);
+            }
+          });
+          return;
+        }
+
+        // 3. Last resort: try exact name
+        sendLog('warn', `⚠️ Container not found by ancestor or pattern, trying exact: ${machineName}`);
+        exec(`docker logs ${machineName}`, (logsErr, logsStdout) => {
+          if (logsErr) {
+            sendLog('error', `❌ Could not get logs: ${logsErr.message}`);
+            resolve('');
+          } else {
+            sendLog('log', `✅ Got logs (exact): ${logsStdout.length} chars`);
+            resolve(logsStdout);
+          }
+        });
+      });
+    });
+  });
+});
+
+
 import { spawn } from 'child_process'; // metti questa importazione vicino a `import { exec } from 'child_process';`
 
 // ...
@@ -200,53 +315,27 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
 
 
   try {
-
     if (Array.isArray(command)) {
-
-      args = command.flatMap((el) =>
-
-        String(el).split(/[,\s]+/).filter(Boolean)
-
-      );
-
+      // Respect the array structure provided by the client
+      args = command.map(String);
     } else if (typeof command === 'string') {
-
+      // Legacy string splitting
       args = command.trim().split(/[,\s]+/).filter(Boolean);
-
+      // Only clean quotes for string-based legacy input
+      args = args.map(a => a.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
     } else {
-
       throw new Error('Invalid command type');
-
     }
-
-
-
-    args = args.map(a => a.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
-
-
-
-    const seen = new Set<string>();
-
-    args = args.filter(x => (seen.has(x) ? false : (seen.add(x), true)));
-
-
 
     if (args.length === 0) {
-
-      throw new Error('No valid command arguments after normalization.');
-
+      throw new Error('No valid command arguments.');
     }
 
+    sendLog('log', `args for docker exec: ${JSON.stringify(args)}`);
 
-
-    sendLog('log', `Normalized args for docker exec: ${args}`);
-
-  } catch (err) {
-
+  } catch (err: any) {
     sendLog('error', `❌ Failed to normalize command: ${err}`);
-
     throw err;
-
   }
 
 
@@ -372,10 +461,25 @@ ipcMain.handle("simulate-attack", async (event, { container, command }) => {
 });
 
 
-ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
+ipcMain.handle('run-simulation', async (event, { machines, labInfo, sudoPassword }) => {
   sendLog('log', `machines? ${Array.isArray(machines)} ${machines?.length}`);
+
+  // DEBUG: Check for SCADA payload
+  if (Array.isArray(machines)) {
+    machines.forEach(m => {
+      if (m.type === 'scada') {
+        sendLog('log', `[MAIN] SCADA Machine found: ${m.name}`);
+        sendLog('log', `[MAIN] Industrial prop: ${!!m.industrial}`);
+        if (m.industrial) {
+          sendLog('log', `[MAIN] scadaProjectName: ${m.industrial.scadaProjectName}`);
+          sendLog('log', `[MAIN] scadaProjectContent length: ${m.industrial.scadaProjectContent?.length}`);
+        }
+      }
+    });
+  }
+
   sendLog('log', `labInfo? ${JSON.stringify(labInfo)}`);
-  
+
   const LAB_NAME = labInfo?.name || 'default-lab';
   const LABS_DIR = path.join(os.homedir(), 'kathara-labs');
   const ZIP_PATH = path.join(LABS_DIR, `${LAB_NAME}.zip`);
@@ -396,20 +500,52 @@ ipcMain.handle('run-simulation', async (event, { machines, labInfo }) => {
 
   sendLog('log', "🚀 Launching Kathara...");
   return new Promise((resolve, reject) => {
-    sendLog('log', `📂 Lanciando kathara in: ${LAB_PATH}`);
-    sendLog('log', `📄 File presenti: ${fs.readdirSync(LABS_DIR)}`);
-    exec(`kathara lstart --noterminals`, { cwd: LABS_DIR }, (error, stdout, stderr) => {
-      if (error) {
-        const errorMessage = `❌ Failed to start: ${stderr || error.message}`;
+    sendLog('log', `📂 Launching kathara in: ${LABS_DIR}`);
+    sendLog('log', `📂 Launching kathara in: ${LABS_DIR}`);
+
+    const childVal = spawn('sudo', ['-S', 'kathara', 'lstart', '--privileged', '--noterminals'], {
+      cwd: LABS_DIR,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    if (sudoPassword) {
+      childVal.stdin.write(sudoPassword + '\n');
+    }
+    childVal.stdin.end();
+
+    let stdoutData = '';
+    let stderrData = '';
+
+    childVal.stdout.on('data', (data) => {
+      const msg = data.toString();
+      stdoutData += msg;
+      sendLog('log', msg);
+    });
+
+    childVal.stderr.on('data', (data) => {
+      const msg = data.toString();
+      // Filter out the password prompt itself if strictly needed, but sudo -S usually just reads
+      if (!msg.includes('[sudo] password for')) {
+        stderrData += msg;
+        sendLog('warn', msg);
+      }
+    });
+
+    childVal.on('close', (code) => {
+      if (code === 0) {
+        sendLog('log', "✅ Lab started.");
+        resolve(stdoutData.trim());
+      } else {
+        const errorMessage = `❌ Failed to start (code ${code}): ${stderrData}`;
         sendLog('error', errorMessage);
-        return reject(errorMessage);
+        reject(errorMessage);
       }
-      if (stderr) {
-        sendLog('warn', stderr);
-      }
-      sendLog('log', stdout);
-      sendLog('log', "✅ Lab started.");
-      resolve(stdout.trim());
+    });
+
+    childVal.on('error', (err) => {
+      const errorMessage = `❌ Spawn error: ${err.message}`;
+      sendLog('error', errorMessage);
+      reject(errorMessage);
     });
   });
 });
@@ -440,7 +576,7 @@ ipcMain.handle('stop-simulation', async () => {
       }
       sendLog('log', stdout);
       await emptyKatharaLabs(labsDir);
-      
+
       sendLog('log', "✅ lclean done.");
       resolve(stdout.trim());
     });
@@ -448,9 +584,144 @@ ipcMain.handle('stop-simulation', async () => {
 });
 
 
+// --- Terminal IPC ---
+
+const terminals = new Map<string, IPty>();
+
+ipcMain.handle('terminal.create', async (event, containerName: string) => {
+  const shell = 'docker';
+  let targetContainer = '';
+  try {
+    const ancestorName = await new Promise<string>((resolve, reject) => {
+      exec(`docker ps --filter ancestor=${containerName} --format "{{.Names}}"`, (err, stdout) => {
+        const name = stdout ? stdout.trim().split("\n")[0] : null;
+        if (name) resolve(name);
+        else {
+          exec(`docker ps --filter name=_${containerName}_ --format "{{.Names}}"`, (err2, stdout2) => {
+            const name2 = stdout2 ? stdout2.trim().split("\n")[0] : null;
+            if (name2) resolve(name2);
+            else reject('Container not found');
+          });
+        }
+      });
+    });
+    targetContainer = ancestorName;
+  } catch (e: any) {
+    sendLog('error', `Terminal creation failed: ${e}`);
+    let verifyError = String(e);
+    if (verifyError.includes('permission denied') || verifyError.includes('connect to the docker API')) {
+      verifyError = "Docker permission denied. Please add your user to the docker group: sudo usermod -aG docker $USER";
+    }
+    throw new Error(verifyError);
+  }
+
+  const ptyProcess = pty.spawn(shell, ['exec', '-it', targetContainer, '/bin/bash'], {
+    name: 'xterm-color',
+    cols: 80,
+    rows: 30,
+    cwd: process.env.HOME,
+    env: process.env as any
+  });
+
+  const id = Date.now().toString();
+  terminals.set(id, ptyProcess);
+
+  ptyProcess.onData((data) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('terminal.incoming', { id, data });
+    }
+  });
+
+  ptyProcess.onExit(() => {
+    terminals.delete(id);
+    if (mainWindow) {
+      mainWindow.webContents.send('terminal.incoming', { id, data: '\r\n[Process exited]\r\n' });
+    }
+  });
+
+  return id;
+});
+
+ipcMain.on('terminal.input', (event, { id, data }) => {
+  const term = terminals.get(id);
+  if (term) {
+    term.write(data);
+  }
+});
+
+ipcMain.on('terminal.resize', (event, { id, cols, rows }) => {
+  const term = terminals.get(id);
+  if (term) {
+    term.resize(cols, rows);
+  }
+});
+
+ipcMain.handle('terminal.kill', (event, id) => {
+  const term = terminals.get(id);
+  if (term) {
+    term.kill();
+    terminals.delete(id);
+  }
+});
+
+
+ipcMain.handle('save-scada-project', async (event, machineName) => {
+  return new Promise((resolve, reject) => {
+    sendLog('log', `💾 save-scada-project called for: ${machineName}`);
+
+    // Try to find container by name pattern (Kathara: _machineName_)
+    const nameCmd = `docker ps --filter name=_${machineName}_ --format "{{.Names}}"`;
+
+    exec(nameCmd, (err, stdout) => {
+      if (err) {
+        sendLog('error', `❌ Error finding container for ${machineName}: ${err.message}`);
+        return reject(err.message);
+      }
+
+      let containerName = stdout ? stdout.trim().split("\n")[0] : null;
+
+      const runBase64 = (targetContainer: string) => {
+        const filePath = "/usr/src/app/FUXA/server/_appdata/project.fuxap.db";
+        // Use base64 to safeguard binary data
+        const cmd = `docker exec ${targetContainer} base64 "${filePath}"`;
+        exec(cmd, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+          if (error) {
+            sendLog('error', `❌ Failed to read project file: ${stderr || error.message}`);
+            // Resolve empty to indicate failure without crashing logic, or reject?
+            // Alert in frontend handles empty string check.
+            resolve("");
+          } else {
+            sendLog('log', `✅ Project file read (${stdout.length} chars)`);
+            resolve(stdout.trim());
+          }
+        });
+      };
+
+      if (!containerName) {
+        // Fallback: try by ancestor (image name) if machineName is used as image name?
+        // Usually machineName is the hostname.
+        // Let's rely on name pattern first. If not found, log warning.
+        sendLog('warn', `⚠️ Container for ${machineName} not found by name pattern. Trying ancestor...`);
+        exec(`docker ps --filter ancestor=${machineName} --format "{{.Names}}"`, (err2, stdout2) => {
+          containerName = stdout2 ? stdout2.trim().split("\n")[0] : null;
+          if (containerName) {
+            runBase64(containerName);
+          } else {
+            reject("Container not found");
+          }
+        });
+      } else {
+        runBase64(containerName);
+      }
+    });
+  });
+});
+
+
+
 
 // --- helper per eseguire comandi in modo sicuro (no shell injection) ---
-function runCmd(cmd: string, args: string[], opts: {cwd?: string, timeoutMs?: number} = {}) {
+function runCmd(cmd: string, args: string[], opts: { cwd?: string, timeoutMs?: number } = {}) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd || process.cwd(),
@@ -463,9 +734,9 @@ function runCmd(cmd: string, args: string[], opts: {cwd?: string, timeoutMs?: nu
 
     const timer = opts.timeoutMs
       ? setTimeout(() => {
-          timedOut = true;
-          try { child.kill('SIGKILL'); } catch {}
-        }, opts.timeoutMs)
+        timedOut = true;
+        try { child.kill('SIGKILL'); } catch { }
+      }, opts.timeoutMs)
       : null;
 
     child.stdout.on('data', d => (out += d.toString()));
@@ -631,7 +902,22 @@ app.on('window-all-closed', () => {
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
+    // STARTUP CLEANUP: Stop any running kathara labs and remove the directory
+    const labsDir = path.join(os.homedir(), 'kathara-labs');
+    try {
+      console.log('🧹 Startup: cleaning previous labs...');
+      // 1. Stop simulations
+      await runCmd('kathara', ['lclean', '-d', labsDir], { timeoutMs: 20_000 });
+
+      // 2. Remove directory
+      await fsp.rm(labsDir, { recursive: true, force: true });
+      console.log('✅ Startup: removed labs directory');
+    } catch (e) {
+      console.error('❌ Startup cleanup failed:', e);
+      // We continue anyway, so the app doesn't crash if cleanup fails
+    }
+
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

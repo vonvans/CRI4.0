@@ -23,5 +23,21 @@ RUN apt-get update && \
     # pulizia per ridurre spazio immagine
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install smoloki
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN uv pip install requests smoloki
+RUN printf '#!/bin/sh\nexec uv run smoloki "$@"\n' > /usr/local/bin/smoloki \
+ && chmod +x /usr/local/bin/smoloki
+
+
 # Mantieni bash come entrypoint (puoi cambiarlo se vuoi eseguire lo script di default)
 ENTRYPOINT ["bash"]

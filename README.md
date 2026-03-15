@@ -3,31 +3,43 @@
 ## Prerequisites
 
 - [Docker](https://www.docker.com/) installed and available in your system's `PATH`
-- [Node.js v18.20.8](https://nodejs.org/en/download/) installed
+- [Node.js v25.3.0](https://nodejs.org/en/download/) installed
 - [Docker Compose Plugin](https://docs.docker.com/compose/install/) installed
 - [Kathará](https://www.kathara.org/) installed
 
 
 ## Installation Instructions
 
-1. **Clone the repository:**
+### Debian/Ubuntu
+```Bash
+curl -sfL https://raw.githubusercontent.com/CoLorenzo/CRI4.0/refs/heads/webui/setup_debian.sh | bash - 
+```
+
+### Generic Linux
+
+1. **Install required kernel modules:**
     ```sh
-    git clone https://github.com/vonvans/CRI4.0
+    modprobe nfnetlink_queue
+    ```
+
+2. **Clone the repository:**
+    ```sh
+    git clone https://github.com/CoLorenzo/CRI4.0
     cd CRI4.0
     ```
 
-2. **Install Node.js dependencies (ensure you are using Node.js v18.20.8):**
+3. **Install Node.js dependencies (ensure you are using Node.js v25.3.0):**
     ```sh
     npm install
     ```
 
-3. **Build Docker containers (from the `containers` directory):**
+4. **Build Docker containers (from the `containers` directory):**
     ```sh
     cd containers
     sudo docker compose --profile collector --profile kathara build
     ```
 
-4. **Start the application (in the `containers` directory):**
+5. **Start the application (in the `containers` directory):**
     ```sh
     npm start
     ```
