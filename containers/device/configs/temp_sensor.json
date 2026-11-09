@@ -1,0 +1,17 @@
+{
+  "device_type": "TempSensor",
+  "modbus_bind": "0.0.0.0:1502",
+  "netstream_addr": "localhost:8082",
+  "properties": {},
+  "variables": {
+    "reactor_temp": {
+      "netstream_sub": "telemetry/reactor/temperature",
+      "modbus": {
+        "address": 100,
+        "kind": "input",
+        "type": "uint16",
+        "scale": 100.0
+      }
+    }
+  }
+}

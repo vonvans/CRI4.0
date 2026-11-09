@@ -1,0 +1,129 @@
+{
+  "simulation": {
+    "dt_seconds": 0.05,
+    "description": "Configurazione Impianto CRI 4.0 - Grafo Fisico Completo a 5 Componenti",
+    "environment": {
+      "id": "$env",
+      "properties": {
+        "ambient_temperature": {
+          "value": 20.0,
+          "unit": "°C"
+        },
+        "ambient_pressure": {
+          "value": 1.0,
+          "unit": "bar"
+        },
+        "thermal_capacity": {
+          "value": 50000.0,
+          "unit": "J/K"
+        }
+      }
+    },
+    "components": [
+      {
+        "id": "main_valve",
+        "type": "mechanical_valve",
+        "properties": {
+          "physical_rate_limit": {
+            "value": 5.0,
+            "unit": "%/s"
+          }
+        }
+      },
+      {
+        "id": "cooling_line",
+        "type": "hydraulic_line",
+        "properties": {
+          "upstream_pressure": {
+            "value": 4.5,
+            "unit": "bar"
+          },
+          "flow_coefficient": {
+            "value": 0.15,
+            "unit": "kg/s"
+          }
+        }
+      },
+      {
+        "id": "reactor_core",
+        "type": "thermal_tank",
+        "properties": {
+          "heating_power": {
+            "value": 1200.0,
+            "unit": "W"
+          },
+          "thermal_capacity": {
+            "value": 25000.0,
+            "unit": "J/K"
+          },
+          "heat_transfer_coefficient": {
+            "value": 15.0,
+            "unit": "W/K"
+          }
+        }
+      },
+      {
+        "id": "temp_sensor",
+        "type": "thermowell",
+        "properties": {
+          "time_constant": {
+            "value": 3.5,
+            "unit": "seconds"
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from": {
+          "component": "main_valve",
+          "port": "actual_aperture"
+        },
+        "to": {
+          "component": "cooling_line",
+          "port": "valve_aperture"
+        }
+      },
+      {
+        "from": {
+          "component": "cooling_line",
+          "port": "mass_flow"
+        },
+        "to": {
+          "component": "reactor_core",
+          "port": "cooling_flow"
+        }
+      },
+      {
+        "from": {
+          "component": "$env",
+          "port": "ambient_temperature"
+        },
+        "to": {
+          "component": "reactor_core",
+          "port": "ambient_temperature"
+        }
+      },
+      {
+        "from": {
+          "component": "reactor_core",
+          "port": "thermal_loss"
+        },
+        "to": {
+          "component": "$env",
+          "port": "thermal_load"
+        }
+      },
+      {
+        "from": {
+          "component": "reactor_core",
+          "port": "core_temperature"
+        },
+        "to": {
+          "component": "temp_sensor",
+          "port": "real_temperature"
+        }
+      }
+    ]
+  }
+}

@@ -18,6 +18,9 @@ services:
     image: icr/kathara-base
     profiles:
       - kathara
+  cribase:
+    build: ./cribase
+    image: icr/cribase
   mitm-arp-spoofing:
     build: ./mitm/arp-spoofing
     image: icr/mitm-arp-spoofing
@@ -178,6 +181,11 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+  sniffing-mqtt-eavesdropping:
+    build:
+      context: ..
+      dockerfile: ./containers/sniffing/mqtt-eavesdropping/Dockerfile
+    image: icr/sniffing-mqtt-eavesdropping
     profiles:
       - kali
   temperature_sensor:
@@ -196,13 +204,31 @@ services:
       - NET_ADMIN
     profiles:
       - kali
-  injection-crack-plc:
-    build: ./injection/crack-plc
-    image: icr/injection-crack-plc
+  access-gain-crack-plc:
+    build: ./access-gain/crack-plc
+    image: icr/access-gain-crack-plc:latest
     cap_add:
       - NET_ADMIN
     profiles:
       - kali
+  mosquitto:
+    build: ./mosquitto
+    image: icr/mosquitto
+  mqtt_pub:
+    build:
+      context: ..
+      dockerfile: ./containers/mqtt_pub/Dockerfile
+    image: icr/mqtt_pub
+  netproxy:
+    build:
+      context: ..
+      dockerfile: ./containers/netproxy/Dockerfile
+    image: icr/netproxy
+  device:
+    build:
+      context: ..
+      dockerfile: ./containers/device/Dockerfile
+    image: icr/device
   ngfw:
     build: ./ngfw_appliance
     image: icr/ngfw

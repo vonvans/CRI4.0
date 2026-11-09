@@ -1,0 +1,69 @@
+#! /bin/bash
+
+if [ "$#" -ne 10 ]; then
+    echo "Usage: $0 <INTERFACE> <INPUT_PORT> <OUTPUT_ENDPOINT> <PAGE> <HTTP_CODE> <METHOD> <PROTOCOL> <FINDTIME> <MAXRETRY> <BANTIME>"
+    echo "Example: $0 eth1 8080 http://10.0.1.1:8080 /login 200 POST HTTP 10m 5 1h"
+    exit 1
+fi
+
+INTERFACE="$1"
+INPUT_PORT="$2"
+OUTPUT_ENDPOINT="$3"
+PAGE="$4"
+HTTP_CODE="$5"
+METHOD="$6"
+PROTOCOL="$7"
+FINDTIME="$8"   #10m
+MAXRETRY="$9"   #5
+BANTIME="${10}" #1h
+
+IPFROMINTERFACE=$(ip -o addr show dev ${INTERFACE} | awk '{split($4,a,"/"); print a[1]}')
+
+# add proxy
+cat <<EOF >/tmp/nginx_snippet.conf
+    server {
+        listen ${IPFROMINTERFACE}:${INPUT_PORT};
+        location / {
+            proxy_pass ${OUTPUT_ENDPOINT};
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+        }
+    }
+EOF
+sed -i "/http {/r /tmp/nginx_snippet.conf" /etc/nginx/nginx.conf
+rm /tmp/nginx_snippet.conf
+nginx -t
+service nginx stop && service nginx start
+
+tee /etc/fail2ban/filter.d/nginx-ban-${INPUT_PORT}-${METHOD}-${HTTP_CODE}.conf >/dev/null <<EOF
+[Definition]
+failregex = ^<HOST>.*"${METHOD}.*${PAGE}.*${PROTOCOL}/1\.[01]".* ${HTTP_CODE} [0-9]+
+ignoreregex =
+EOF
+
+tee /etc/fail2ban/jail.d/nginx-ban-${INPUT_PORT}-${METHOD}-${HTTP_CODE}.local >/dev/null <<__EOF__
+[nginx-ban-${INPUT_PORT}-${METHOD}-${HTTP_CODE}]
+enabled  = true
+filter   = nginx-ban-${INPUT_PORT}-${METHOD}-${HTTP_CODE}
+logpath  = /var/log/nginx/access.log
+backend  = polling
+polltime = 0.1
+
+findtime = ${FINDTIME}
+maxretry = ${MAXRETRY}
+bantime  = ${BANTIME}
+
+action = %(action_)s
+         loki
+__EOF__
+
+tee /etc/fail2ban/action.d/loki.conf >/dev/null <<__EOF__
+[Definition]
+actionstart = 
+actionstop =
+actioncheck =
+actionban =  /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been banned"}'
+actionunban = /root/.local/bin/uvx smoloki -b http://10.1.0.254:3100 '{"job":"test","level":"Info", "host":"$HOSTNAME"}' '{"message":"<ip> has been unbanned"}'
+__EOF__
+
+service fail2ban restart

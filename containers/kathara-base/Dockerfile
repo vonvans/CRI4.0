@@ -9,13 +9,7 @@ RUN echo "root:cri40" | chpasswd
 
 
 # install docker-systemctl-replacement
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-venv \
-    pipx \
-    ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv pipx ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV PATH="/root/.local/bin:${PATH}"
 RUN pipx install docker-systemctl-replacement
 RUN ln -sf /root/.local/bin/systemctl.py /usr/local/bin/systemctl
@@ -41,7 +35,17 @@ RUN sed -i \
   -e '$a PermitRootLogin yes\nPasswordAuthentication yes' \
   /etc/ssh/sshd_config
 
+
+# Install smoloki
+RUN apt-get update && apt-get install -y curl ca-certificates 
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN uv pip install requests smoloki
+RUN printf '#!/bin/sh\nexec uv run smoloki "$@"\n' > /usr/local/bin/smoloki && chmod +x /usr/local/bin/smoloki
+
+
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
-
-CMD ["/usr/local/bin/start.sh"]

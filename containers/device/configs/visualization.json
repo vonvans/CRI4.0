@@ -1,0 +1,38 @@
+{
+  "renderMode": "2d",
+  "assetTypes": {
+    "environment": {
+      "asset2d": "/assets/images/environment.png",
+      "asset3d": "/assets/models/environment.glb"
+    },
+    "mechanical_valve": {
+      "asset2d": "/assets/images/valve.png",
+      "asset3d": "/assets/models/valve.glb",
+      "bindRotation": "actual_pos"
+    },
+    "hydraulic_line": {
+      "asset2d": "/assets/images/pipe.png",
+      "asset3d": "/assets/models/pipe.glb"
+    },
+    "thermal_tank": {
+      "asset2d": "/assets/images/tank.png",
+      "asset3d": "/assets/models/tank.glb"
+    },
+    "thermowell": {
+      "asset2d": "/assets/images/sensor.png",
+      "asset3d": "/assets/models/sensor.glb",
+      "bindColor": "reactor_temp"
+    }
+  },
+  "layout": {
+    "main_valve":   { "x": 100, "y": 350, "type": "mechanical_valve", "label": "Valvola Principale" },
+    "cooling_line": { "x": 350, "y": 350, "type": "hydraulic_line",   "label": "Linea di Raffreddamento" },
+    "reactor_core": { "x": 600, "y": 350, "type": "thermal_tank",     "label": "Contenitore termico" },
+    "temp_sensor":  { "x": 850, "y": 350, "type": "thermowell",       "label": "Sensore di Temperatura" },
+    "$env":         { "x": 470, "y": 150, "type": "environment",      "label": "Ambiente Esterno" }
+  },
+  "pipes": {
+    "strokeWidth": 3,
+    "defaultColor": "#555555"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { api } from "../api";
 import {
   Card,
   CardBody,
@@ -9,7 +10,12 @@ import {
   Radio,
   Select,
   SelectItem,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
 } from "@nextui-org/react";
+import ArkimeViewer from "../components/ArkimeViewer";
 
 function LogInsightsPage() {
   const [logs, setLogs] = useState([]);
@@ -71,23 +77,22 @@ function LogInsightsPage() {
       end: endNs
     });
 
-    return `/api/loki-query?${params.toString()}`;
+    return params.toString();
   };
 
   const fetchLogs = async () => {
     setIsFetching(true);
     try {
-      const url = buildLokiQueryUrl();
-      let res = await fetch(url);
-
-      // Fallback: if 404 (route not present), try a proxy-mounted direct path
-      if (res.status === 404) {
-        const queryParams = url.split("?")[1];
-        res = await fetch(`/loki/api/v1/query_range?${queryParams}`);
+      const queryParams = buildLokiQueryUrl();
+      let data;
+      try {
+        data = await api.queryLokiLogs(queryParams);
+      } catch (e) {
+        // Fallback: if route fails, try a direct proxy-mounted path (legacy)
+        const res = await fetch(`/loki/api/v1/query_range?${queryParams}`);
+        if (!res.ok) throw new Error("Failed to fetch logs");
+        data = await res.json();
       }
-
-      if (!res.ok) throw new Error("Failed to fetch logs");
-      const data = await res.json();
 
       if (data.data && data.data.result) {
         const incoming = data.data.result.flatMap((stream) =>
@@ -187,6 +192,8 @@ function LogInsightsPage() {
   const handleCleanLogs = async () => {
     setIsCleaning(true);
     try {
+      const { start, end } = getStartEndSeconds();
+      await api.deleteLokiLogs(broadDeleteSelector, start, end);
       setLogs([]);
     } catch (err) {
       console.error(err);
@@ -198,14 +205,65 @@ function LogInsightsPage() {
 
   const currentLogs = logs;
 
+  // Build a descriptive filename based on active filters
+  const buildFilename = (ext) => {
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const parts = ["report", ts];
+    if (hostnameSearch.trim()) parts.push(`host-${hostnameSearch.trim()}`);
+    if (severityFilter) parts.push(severityFilter.toLowerCase());
+    if (timeRange !== "custom") parts.push(timeRange);
+    return `${parts.join("_")}.${ext}`;
+  };
+
+  const downloadCSV = () => {
+    if (currentLogs.length === 0) return;
+    const header = ["Timestamp", "Hostname", "Severity", "Message"];
+    const rows = currentLogs.map((log) => [
+      new Date(log.timestamp).toISOString(),
+      log.hostname,
+      log.severity,
+      `"${String(log.message).replace(/"/g, '""')}"`,
+    ]);
+    const csv = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = buildFilename("csv");
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadJSON = () => {
+    if (currentLogs.length === 0) return;
+    const data = currentLogs.map((log) => ({
+      timestamp: new Date(log.timestamp).toISOString(),
+      hostname: log.hostname,
+      severity: log.severity,
+      message: log.message,
+    }));
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = buildFilename("json");
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+
   const severityColors = {
     INFO: "bg-green-500",
     WARNING: "bg-orange-500",
     ERROR: "bg-red-500",
   };
 
-  return (
-    <div className="min-h-screen p-4 bg-gray-900 text-white">
+  // The log-insights UI (filters + table), rendered as the first Statistics tab.
+  const logInsights = (
+    <div className="pt-2">
       <div className="flex justify-end items-center mb-6">
         <span
           className={`px-3 py-1 rounded-full text-sm font-semibold ${isFetching ? "bg-blue-500" : "bg-gray-600"
@@ -346,6 +404,36 @@ function LogInsightsPage() {
         <Button color="warning" isLoading={isCleaning} onClick={handleCleanLogs}>
           {isCleaning ? "Cleaning..." : "Clean logs"}
         </Button>
+        <Dropdown isDisabled={currentLogs.length === 0}>
+          <DropdownTrigger>
+            <Button
+              color="secondary"
+              isDisabled={currentLogs.length === 0}
+              endContent={
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              }
+              startContent={
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              }
+            >
+              Download Report
+            </Button>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="Download format">
+            <DropdownItem key="csv" onPress={downloadCSV}>
+              📄 Download CSV
+            </DropdownItem>
+            <DropdownItem key="json" onPress={downloadJSON}>
+              🗂 Download JSON
+            </DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
       </div>
 
       <div className="overflow-x-auto bg-gray-800 rounded-lg p-4">
@@ -421,6 +509,22 @@ function LogInsightsPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="h-[calc(100vh-4rem)] p-4 bg-gray-900 text-white flex flex-col">
+      <ArkimeViewer
+        grow
+        extraTabs={[
+          {
+            key: "logs",
+            label: "Log Insights",
+            description: "Loki logs collected from the simulation. Filter, inspect and export.",
+            content: logInsights,
+          },
+        ]}
+      />
     </div>
   );
 }

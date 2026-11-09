@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import Graph from "react-graph-vis";
 import { makeGraph } from "../scripts/draw";
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { Accordion, AccordionItem, Button, Card, CardBody } from "@nextui-org/react";
 import { Checkbox, CheckboxGroup } from "@nextui-org/react";
 import { Select, SelectItem } from "@nextui-org/react";
@@ -15,7 +15,12 @@ import UIModal from "../components/UIModal";
 import PasswordModal from "../components/PasswordModal";
 import { toast } from 'react-hot-toast';
 import LogsModal from "../components/LogsModal";
+import ModbusEndpointsModal from "../components/ModbusEndpointsModal";
+import AttackStatusModal from "../components/AttackStatusModal";
+import ValueStreamModal from "../components/ValueStreamModal";
+import ErrorModal from "../components/ErrorModal";
 import { getMachineIps } from "../utils/ipUtils";
+import { isPhysicalSim, isHolderDevice } from "../utils/deviceAutoCreate";
 
 import { api } from "../api";
 
@@ -23,39 +28,114 @@ import { TerminalContext } from "../contexts/TerminalContext";
 
 function Topology() {
 
-  const [attackInProgress, setAttackInProgress] = useState(false);
-  const [showTimer, setShowTimer] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [attackInProgress, setAttackInProgress] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('attackInProgress') || 'false'); }
+    catch { return false; }
+  });
 
   // Terminal Sessions State
   const { activeTerminals, setActiveTerminals } = useContext(TerminalContext);
 
   // UI Modal State
-  const [uiModal, setUiModal] = useState({ isOpen: false, url: "", title: "" });
+  const [uiModal, setUiModal] = useState({ isOpen: false, url: "", title: "", zoom: 1 });
 
   // Logs Modal State
   const [logsModal, setLogsModal] = useState({ isOpen: false, containerName: "" });
 
+  // Modbus Endpoints Modal State (device machines)
+  const [modbusModal, setModbusModal] = useState({ isOpen: false, machineName: "", endpoints: [] });
+
+  // Attack Status Modal State
+  const [attackStatusModal, setAttackStatusModal] = useState({ isOpen: false, attackerName: "", isCustomAttack: false });
+  const [valueStreamModal, setValueStreamModal] = useState({ isOpen: false, brokerName: "" });
+
   // Password Modal State
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+
+  // Error Modal State
+  const [errorModalOpen, setErrorModalOpen] = useState({ isOpen: false, message: "" });
+
+  const [machineStatuses, setMachineStatuses] = useState({});
+  const pollingIntervalRef = useRef(null);
 
   const handleSimulationStart = async (password) => {
     setPasswordModalOpen(false);
     setShowSimulationBanner(true);
+    setAttackInProgress(false);
+    
+    // Initialize statuses to 'pending'. Config holders are not deployed, so
+    // they never signal readiness and must not block the deploy modal.
+    const deployedMachines = machines.filter((m) => !isHolderDevice(m));
+    const initialStatuses = {};
+    deployedMachines.forEach(m => {
+      initialStatuses[m.name] = 'pending';
+    });
+    setMachineStatuses(initialStatuses);
 
     try {
       await api.runSimulation(machines, labInfo, password);
-      // Wait a bit to ensure kathara starts
-      setTimeout(() => {
-        setShowSimulationBanner(false);
-        setSimulationRun(true);
-        setStopSimulation(false);
-      }, 2000);
+      
+      // Start polling for readiness
+      let currentStatuses = { ...initialStatuses };
+      
+      pollingIntervalRef.current = setInterval(async () => {
+        let allReady = true;
+        const newStatuses = { ...currentStatuses };
+        
+        for (const machine of deployedMachines) {
+          if (newStatuses[machine.name] !== 'ready') {
+            try {
+              const query = `{host="${machine.name}"} |= "ready"`;
+              const queryParams = `query=${encodeURIComponent(query)}&limit=1`;
+              const data = await api.queryLokiLogs(queryParams);
+              if (data.status === 'success' && data.data && data.data.result && data.data.result.length > 0) {
+                newStatuses[machine.name] = 'ready';
+              } else {
+                allReady = false;
+              }
+            } catch (err) {
+              allReady = false;
+            }
+          }
+        }
+        
+        currentStatuses = newStatuses;
+        setMachineStatuses(newStatuses);
+        
+        if (allReady) {
+          clearInterval(pollingIntervalRef.current);
+          setTimeout(() => {
+            setShowSimulationBanner(false);
+            setSimulationRun(true);
+            setStopSimulation(false);
+          }, 1000);
+        }
+      }, 1000);
+      
     } catch (e) {
       console.error("Run simulation error:", e);
-      toast.error("Simulation failed: " + e.message);
+      const raw = String(e.message || e);
+      const isNetworkError = raw.toLowerCase().includes('networkerror') || raw.toLowerCase().includes('failed to fetch');
+      const isContainerNotRunning = raw.includes('is not running') || raw.includes('container') && raw.includes('not running');
+      const message = isNetworkError
+        ? "Cannot reach the backend server. Make sure the server is running (npm run server) and try again. If you are using a custom machine image that needs to be pulled from Docker Hub, the first start may take several minutes."
+        : isContainerNotRunning
+        ? `A container exited before Kathara could configure it.\n\nThis usually means the Docker image is not designed for long-running standalone use — for example, images that require a Kubernetes cluster (like nginx/nginx-ingress) or an external orchestrator will crash immediately.\n\nUse a base image like ubuntu, alpine, or debian instead.\n\nFull error:\n${raw}`
+        : raw;
+      setErrorModalOpen({ isOpen: true, message });
+      toast.error("Simulation failed.");
       setShowSimulationBanner(false);
     }
+  };
+
+  const handleCancelSimulation = async () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setShowSimulationBanner(false);
+    toast("Deployment cancelled. Stopping infrastructure...", { icon: 'ℹ️' });
+    await handleStopSimulation();
   };
 
   const [simulationRun, setSimulationRun] = useState(() => {
@@ -98,6 +178,10 @@ function Topology() {
     sessionStorage.setItem('stopSimulation', JSON.stringify(stopSimulation));
   }, [stopSimulation]);
 
+  useEffect(() => {
+    sessionStorage.setItem('attackInProgress', JSON.stringify(attackInProgress));
+  }, [attackInProgress]);
+
 
 
 
@@ -134,8 +218,22 @@ function Topology() {
       return;
     }
 
-    if (!attacker.attackLoaded) {
+    if (!attacker.attackLoaded && !attacker.customAttackId) {
       console.warn("⚠️ Attack not loaded on attacker.");
+      return;
+    }
+
+    const targetContainer = attacker.name;
+
+    // Custom attacks: launch /attack.sh in background, log to /attack.log
+    if (attacker.customAttackId) {
+      try {
+        await api.simulateAttack(targetContainer, ["sh", "-c", "bash -c '. /root/.cri_env; . /attack.sh' > /attack.log 2>&1 & echo $! > /attack.pid"]);
+        setAttackInProgress(true);
+        toast.success("Custom attack started. Check Attack Status for live output.");
+      } catch (e) {
+        toast.error("Failed to start custom attack: " + e.message);
+      }
       return;
     }
 
@@ -154,24 +252,15 @@ function Topology() {
 
     console.log("✅ Launching attack args:", commandArgs);
 
+    // Long-running attacks (e.g. MQTT eavesdropping) launch in the background and
+    // return immediately; keep the button in "Stop Attack" state until the user
+    // stops them explicitly.
+    const isLongRunning =
+      typeof attacker.attackImage === "string" &&
+      attacker.attackImage.includes("mqtt-eavesdropping");
+
     setAttackInProgress(true);
-    setShowTimer(true);
-    setProgress(0);
 
-    // start timer/progress (comportamento originale: 4 secondi)
-    let seconds = 0;
-    const interval = setInterval(() => {
-      seconds += 1;
-      setProgress((seconds / 4) * 100); // progress in %
-      if (seconds >= 4) {
-        clearInterval(interval);
-        setShowTimer(false);
-        // We keep attackInProgress = true until user stops it
-      }
-    }, 1000);
-
-    // Fix: attacker machine is always named "attacker" in Kathara, but state might have image name.
-    const targetContainer = attacker.type === "attacker" ? "attacker" : attacker.name;
     try {
       const output = await api.simulateAttack(targetContainer, commandArgs);
       console.log("Attack output:", output);
@@ -186,12 +275,13 @@ function Topology() {
       } else {
         toast.success("Attack command sent (no output returned).");
       }
+      if (!isLongRunning) setAttackInProgress(false);
 
     } catch (e) {
       console.error("Attack error", e);
       toast.error("Attack failed: " + e.message);
+      setAttackInProgress(false);
     }
-    // nota: lo stato (attackInProgress/showTimer) viene chiuso dal timer sopra
   };
 
   const stopAttack = async (nodeId) => {
@@ -204,13 +294,25 @@ function Topology() {
     }
 
     if (!attacker) return;
-    const targetContainer = attacker.type === "attacker" ? "attacker" : attacker.name;
+    const targetContainer = attacker.name;
 
-    // Use a composite command to stop known processes
+    // Custom attacks: kill by stored PID
+    if (attacker.customAttackId) {
+      try {
+        await api.simulateAttack(targetContainer, ["sh", "-c", "kill $(cat /attack.pid 2>/dev/null) 2>/dev/null; rm -f /attack.pid"]);
+        setAttackInProgress(false);
+        toast.success("Custom attack stopped.");
+      } catch (e) {
+        toast.error("Failed to stop custom attack: " + e.message);
+      }
+      return;
+    }
+
+    // Standard attacks: kill known processes
     const stopCmd = [
       "sh",
       "-c",
-      "sudo nft delete table ip nat 2>/dev/null || true; while pgrep ettercap > /dev/null; do pkill -9 ettercap; sleep 0.5; done; pkill -f modbus_server.py || true",
+      "sudo nft delete table ip nat 2>/dev/null || true; while pgrep ettercap > /dev/null; do pkill -9 ettercap; sleep 0.5; done; pkill -f modbus_server.py || true; kill $(cat /attack.pid 2>/dev/null) 2>/dev/null || true; rm -f /attack.pid; pkill -f fluent-bit 2>/dev/null || true; pkill -f mosquitto_sub 2>/dev/null || true",
     ];
 
     try {
@@ -225,8 +327,83 @@ function Topology() {
 
 
 
+  // Resolve the container IP reachable from the host (same logic as onOpenUI)
+  const resolveContainerIp = async (machineName) => {
+    let ip = "127.0.0.1";
+    const inspectData = await api.getContainerInspect(machineName);
+    if (inspectData && inspectData.length > 0) {
+      const settings = inspectData[0].NetworkSettings;
+      if (settings.Networks) {
+        for (const key of Object.keys(settings.Networks)) {
+          const net = settings.Networks[key];
+          if (net.IPAddress) {
+            ip = net.IPAddress;
+            if (key === 'bridge') break;
+          }
+        }
+      }
+    }
+    return ip;
+  };
+
+  // Build the list of Modbus endpoints exposed by a device machine:
+  // one entry per uploaded peripheral config (its modbus_bind sets the port).
+  const getDeviceModbusEndpoints = (machine, ip) => {
+    const MAIN_CONFIGS = ["simulation.json", "gateway.json", "visualization.json"];
+    const configs = (machine.device?.configs || []).filter(
+      (c) => c?.name && c?.content && !MAIN_CONFIGS.includes(c.name)
+    );
+
+    // The physics simulator only serves the scenario configs, no Modbus.
+    if (isPhysicalSim(machine)) return [];
+
+    // No uploads → the default scenario baked into icr/device is running
+    if (configs.length === 0) {
+      return [
+        {
+          name: "temp_sensor", deviceType: "TempSensor", address: `${ip}:1502`,
+          variables: [{ name: "reactor_temp", register: 100, kind: "input" }],
+        },
+        {
+          name: "valve_actuator", deviceType: "ValveActuator", address: `${ip}:1503`,
+          variables: [
+            { name: "target_pos", register: 200, kind: "holding" },
+            { name: "actual_pos", register: 201, kind: "holding" },
+          ],
+        },
+      ];
+    }
+
+    const endpoints = [];
+    for (const cfg of configs) {
+      try {
+        const b64 = String(cfg.content).split(";base64,").pop();
+        const json = JSON.parse(atob(b64));
+        if (!json.modbus_bind) continue;
+        const port = String(json.modbus_bind).split(":").pop();
+        const variables = Object.entries(json.variables || {})
+          .filter(([, v]) => v?.modbus)
+          .map(([varName, v]) => ({
+            name: varName,
+            register: v.modbus.address,
+            kind: v.modbus.kind || "",
+          }));
+        endpoints.push({
+          name: cfg.name.replace(/\.json$/i, ""),
+          deviceType: json.device_type || "unknown",
+          address: `${ip}:${port}`,
+          variables,
+        });
+      } catch (e) {
+        console.error(`Failed to parse device config ${cfg.name}`, e);
+      }
+    }
+    return endpoints;
+  };
+
   const handleStopSimulation = async () => {
     setStopSimulation(true);
+    setAttackInProgress(false);
     try {
       await api.stopSimulation();
     } catch (e) {
@@ -266,6 +443,10 @@ function Topology() {
                     const machineName = nodeId.replace("machine-", "");
                     const machine = machines.find((m) => m.name === machineName);
                     if (!machine) return;
+
+                    // The physics simulator is the only device machine with a
+                    // web UI (port 8080); peripherals only serve Modbus.
+                    if (machine.type === "device" && !isPhysicalSim(machine)) return;
 
                     // OLD LOGIC (internal IP):
                     // const machineIps = getMachineIps(machines);
@@ -311,12 +492,14 @@ function Topology() {
                       let port = "80"; // Default
                       if (machine.type === "plc") port = "8080";
                       if (machine.type === "scada") port = "1881";
+                      if (machine.type === "device") port = "8080"; // physics-sim web UI
 
                       const url = `http://${ip}:${port}`;
                       setUiModal({
                         isOpen: true,
                         url,
-                        title: `${machineName} (${machine.type})`
+                        title: `${machineName} (${machine.type})`,
+                        zoom: machine.type === "plc" ? 0.8 : 1
                       });
                     } catch (e) {
                       console.error("Failed to resolve container IP", e);
@@ -329,13 +512,85 @@ function Topology() {
                       setUiModal({
                         isOpen: true,
                         url,
-                        title: `${machineName} (${machine.type}) - (IP Resolve Failed)`
+                        title: `${machineName} (${machine.type}) - (IP Resolve Failed)`,
+                        zoom: machine.type === "plc" ? 0.8 : 1
                       });
                     }
+                  }}
+                  onOpenModbusInfo={async (nodeId) => {
+                    const machineName = nodeId.replace("machine-", "");
+                    const machine = machines.find((m) => m.name === machineName);
+                    if (!machine) return;
+
+                    // Use the IP configured on the machine's interfaces in the
+                    // Home page (the address the other lab machines use), not
+                    // the Docker bridge IP.
+                    const configuredIface = (machine.interfaces?.if || []).find(
+                      (i) => i && i.eth && i.eth.domain !== "_collector" && i.ip
+                    );
+                    let ip = configuredIface
+                      ? String(configuredIface.ip).split("/")[0].trim()
+                      : null;
+
+                    if (!ip) {
+                      // No interface configured: fall back to the runtime Docker IP
+                      try {
+                        ip = await resolveContainerIp(machineName);
+                      } catch (e) {
+                        console.error("Failed to resolve container IP", e);
+                        ip = "127.0.0.1";
+                      }
+                    }
+
+                    setModbusModal({
+                      isOpen: true,
+                      machineName,
+                      endpoints: getDeviceModbusEndpoints(machine, ip),
+                    });
                   }}
                   onOpenLogs={(nodeId) => {
                     const machineName = nodeId.replace("machine-", "");
                     setLogsModal({ isOpen: true, containerName: machineName });
+                  }}
+                  onOpenAttackStatus={(nodeId) => {
+                    const machineName = nodeId.replace("machine-", "");
+                    const m = machines.find(m => m.name === machineName || m.type === "attacker");
+                    setAttackStatusModal({ isOpen: true, attackerName: machineName, isCustomAttack: !!m?.customAttackId });
+                  }}
+                  onValueStream={(nodeId) => {
+                    const machineName = nodeId.replace("machine-", "");
+                    setValueStreamModal({ isOpen: true, brokerName: machineName });
+                  }}
+                  onNetFlow={async (nodeId) => {
+                    const machineName = nodeId.replace("machine-", "");
+                    const machine = machines.find((m) => m.name === machineName);
+
+                    // Collect every IP the machine is configured with (lab
+                    // collision-domain IPs from Home + any auto-assigned eth0),
+                    // stripped of the netmask. Arkime `ip ==` matches src or dst,
+                    // so these cover inbound, outbound and forwarded traffic.
+                    const ips = [];
+                    if (machine) {
+                      for (const iface of machine.interfaces?.if || []) {
+                        if (iface?.ip) ips.push(String(iface.ip).split("/")[0].trim());
+                      }
+                      if (machine.computedEth0Ip) ips.push(String(machine.computedEth0Ip).split("/")[0].trim());
+                      if (machine.selectedInterfaceIp) ips.push(String(machine.selectedInterfaceIp).split("/")[0].trim());
+                    }
+
+                    try {
+                      const url = await api.arkimeNetFlow(ips);
+                      setUiModal({
+                        isOpen: true,
+                        url,
+                        title: `Net Flow — ${machineName}`,
+                        zoom: 1,
+                        hideArkimeNav: true,
+                      });
+                    } catch (e) {
+                      console.error("Failed to open net flow", e);
+                      toast.error("Failed to open net flow: " + (e.message || e));
+                    }
                   }}
                   onStartAttack={(nodeId) => simulateAttack(nodeId)}
                   onStopAttack={(nodeId) => stopAttack(nodeId)}
@@ -347,12 +602,25 @@ function Topology() {
       <div className="grid gap-2 items-start">
         {/* Run Simulation */}
         <Button
-          isDisabled={simulationRun}
+          isDisabled={
+            simulationRun ||
+            (machines.some((m) => m.type === "attacker") && !machines.find((m) => m.type === "attacker")?.attackLoaded)
+          }
           className="bg-success text-white"
           onClick={() => setPasswordModalOpen(true)}
         >
           Run Simulation
         </Button>
+
+        {/* Explain why Run Simulation is blocked when an attacker has no attack loaded */}
+        {!simulationRun &&
+          machines.some((m) => m.type === "attacker") &&
+          !machines.find((m) => m.type === "attacker")?.attackLoaded && (
+            <p className="text-xs text-warning-400 -mt-1 px-1">
+              An attacker is present but has no attack loaded. Load an attack in its{" "}
+              <span className="font-semibold">Attack</span> section to enable Run Simulation.
+            </p>
+          )}
 
         {/* Start/Stop Attack */}
         {!attackInProgress ? (
@@ -383,38 +651,36 @@ function Topology() {
           </Button>
         )}
       </div>
-      {showTimer && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-2">
-            <p className="text-sm font-bold uppercase tracking-wide">
-              Stand by, Launching attack
-            </p>
-            <p className="text-xs">Deployment in progress...</p>
 
-            {/* Progress bar */}
-            <div className="w-full bg-warning/20 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-warning h-2 transition-all duration-1000 ease-linear"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
       {showSimulationBanner && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-2">
+          <div className="bg-gray-900 text-warning px-6 py-4 rounded-xl shadow-lg w-96 text-center space-y-4">
             <p className="text-sm font-bold uppercase tracking-wide">
               Deploying infrastructure
             </p>
-            <p className="text-xs">Please wait...</p>
+            
+            <div className="text-left space-y-2 bg-gray-800 p-4 rounded-lg mt-2 mb-2 max-h-60 overflow-y-auto">
+              {machines.filter(m => !isHolderDevice(m)).map(m => (
+                <div key={m.name} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-300">{m.name} ({m.type || 'node'})</span>
+                  <span>{machineStatuses[m.name] === 'ready' ? '🟢' : '🟡'}</span>
+                </div>
+              ))}
+            </div>
 
-            {/* Progress bar opzionale */}
+            <p className="text-xs">Waiting for all nodes to be ready...</p>
+
             <div className="w-full bg-warning/20 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-warning h-2 animate-pulse"
                 style={{ width: `100%` }}
               />
+            </div>
+
+            <div className="pt-2">
+              <Button size="sm" color="danger" variant="light" onPress={handleCancelSimulation}>
+                Cancel
+              </Button>
             </div>
           </div>
         </div>
@@ -490,16 +756,40 @@ function Topology() {
         onClose={() => setUiModal({ ...uiModal, isOpen: false })}
         url={uiModal.url}
         title={uiModal.title}
+        zoom={uiModal.zoom}
+        hideArkimeNav={uiModal.hideArkimeNav}
       />
       <LogsModal
         isOpen={logsModal.isOpen}
         onClose={() => setLogsModal({ ...logsModal, isOpen: false })}
         containerName={logsModal.containerName}
       />
+      <ModbusEndpointsModal
+        isOpen={modbusModal.isOpen}
+        onClose={() => setModbusModal({ ...modbusModal, isOpen: false })}
+        machineName={modbusModal.machineName}
+        endpoints={modbusModal.endpoints}
+      />
+      <AttackStatusModal
+        isOpen={attackStatusModal.isOpen}
+        onClose={() => setAttackStatusModal({ ...attackStatusModal, isOpen: false })}
+        attackerName={attackStatusModal.attackerName}
+        isCustomAttack={attackStatusModal.isCustomAttack}
+      />
+      <ValueStreamModal
+        isOpen={valueStreamModal.isOpen}
+        onClose={() => setValueStreamModal({ ...valueStreamModal, isOpen: false })}
+        brokerName={valueStreamModal.brokerName}
+      />
       <PasswordModal
         isOpen={passwordModalOpen}
         onClose={() => setPasswordModalOpen(false)}
         onSubmit={handleSimulationStart}
+      />
+      <ErrorModal
+        isOpen={errorModalOpen.isOpen}
+        onClose={() => setErrorModalOpen({ ...errorModalOpen, isOpen: false })}
+        message={errorModalOpen.message}
       />
     </div>
   );

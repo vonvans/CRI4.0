@@ -10,7 +10,7 @@ for line in sys.stdin:
         data = json.loads(line)
         exception = data["modbus"]["response"]["exception"]["raw"]
         if (exception == 2):
-            ip = data['dest_ip']
+            ip = data['src_ip']
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
             print(f"{now} {ip}",flush=True)
     except:

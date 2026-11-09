@@ -25,7 +25,7 @@ const BLACK = '#2B1B17';
 import { api } from '../api';
 const DIR = api.assetsUrl;
 
-function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulationRun }) {
+function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenModbusInfo, onOpenLogs, onOpenAttackStatus, onNetFlow, onValueStream, simulationRun }) {
 	const [ifNameAt, setIfNameAt] = useState({ checked: false });
 	const [ifOspfCost, setIfOspfCost] = useState({ checked: false });
 	const [routingLabel, setRoutingLabel] = useState({ checked: false });
@@ -66,6 +66,10 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 			},
 		},
 		groups: {
+			"tls_termination_proxy": { image: DIR + "tls_termination_proxy.png", shape: "image", },
+			"netproxy": { image: DIR + "netproxy.png", shape: "image", },
+			"mosquitto": { image: DIR + "mqtt_broker.png", shape: "image", },
+			"mqtt_pub": { image: DIR + "mqtt_publisher.png", shape: "image", },
 			"engine": { image: DIR + "engine.png", shape: "image", },
 			"fan": { image: DIR + "fan.png", shape: "image", },
 			"temperature_sensor": { image: DIR + "temperature_sensor.png", shape: "image", },
@@ -220,9 +224,37 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 		}
 	};
 
+	const handleOpenModbusInfo = () => {
+		if (contextMenu && onOpenModbusInfo) {
+			onOpenModbusInfo(contextMenu.nodeId);
+			setContextMenu(null);
+		}
+	};
+
 	const handleOpenLogs = () => {
 		if (contextMenu && onOpenLogs) {
 			onOpenLogs(contextMenu.nodeId);
+			setContextMenu(null);
+		}
+	};
+
+	const handleOpenAttackStatus = () => {
+		if (contextMenu && onOpenAttackStatus) {
+			onOpenAttackStatus(contextMenu.nodeId);
+			setContextMenu(null);
+		}
+	};
+
+	const handleNetFlow = () => {
+		if (contextMenu && onNetFlow) {
+			onNetFlow(contextMenu.nodeId);
+			setContextMenu(null);
+		}
+	};
+
+	const handleValueStream = () => {
+		if (contextMenu && onValueStream) {
+			onValueStream(contextMenu.nodeId);
 			setContextMenu(null);
 		}
 	};
@@ -231,12 +263,32 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 		// Find the machine corresponding to the clicked node ID
 		// Note: ID format is "machine-" + name
 		const machineName = contextMenu.nodeId.replace("machine-", "");
+		// Only the physics simulator device machine serves a web UI; the
+		// peripherals (Modbus) do not.
+		if (m.type === "device") {
+			return m.name === machineName && m.device?.role === "physical-sim";
+		}
 		return m.name === machineName && (m.type === "plc" || m.type === "scada");
+	});
+
+	const showModbusInfo = contextMenu && machines.find(m => {
+		const machineName = contextMenu.nodeId.replace("machine-", "");
+		return m.name === machineName && m.type === "device";
 	});
 
 	const showSaveProject = contextMenu && machines.find(m => {
 		const machineName = contextMenu.nodeId.replace("machine-", "");
 		return m.name === machineName && m.type === "scada";
+	});
+
+	const showAttackStatus = contextMenu && machines.find(m => {
+		const machineName = contextMenu.nodeId.replace("machine-", "");
+		return m.name === machineName && m.type === "attacker";
+	});
+
+	const showValueStream = contextMenu && machines.find(m => {
+		const machineName = contextMenu.nodeId.replace("machine-", "");
+		return m.name === machineName && m.type === "mosquitto";
 	});
 
 
@@ -248,34 +300,12 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 				options={options}
 				events={events}
 				getNetwork={(network) => {
-					let edges = {};
-					let physics = {};
-
-					if (smoothEnabled.checked) {
-						edges = {
-							smooth: {
-								type: smoothEnabled.value,
-							},
-						};
-					} else {
-						edges = {
-							smooth: false,
-						};
-					}
-
-					if (physicsEnabled.checked) {
-						physics = {
-							enabled: true,
-							barnesHut: {
-								gravitationalConstant: parseInt(physicsEnabled.value),
-							},
-						};
-					} else {
-						physics = {
-							enabled: false,
-						};
-					}
-					network.setOptions({ edges, physics });
+					// Run a quick hidden stabilization to compute good positions,
+					// then freeze physics so the graph never wobbles.
+					network.once('stabilized', () => {
+						network.setOptions({ physics: { enabled: false } });
+					});
+					network.stabilize(300);
 				}}
 			/>
 			{contextMenu && (
@@ -297,6 +327,14 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 							Open UI
 						</button>
 					)}
+					{showModbusInfo && (
+						<button
+							className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+							onClick={handleOpenModbusInfo}
+						>
+							Modbus Endpoints
+						</button>
+					)}
 					{showSaveProject && (
 						<button
 							className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
@@ -305,11 +343,33 @@ function TopologyGraph({ machines, onOpenTerminal, onOpenUI, onOpenLogs, simulat
 							Save Project
 						</button>
 					)}
+					{showAttackStatus && (
+						<button
+							className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-100 dark:border-zinc-700"
+							onClick={handleOpenAttackStatus}
+						>
+							Attack Status
+						</button>
+					)}
+					{showValueStream && (
+						<button
+							className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-100 dark:border-zinc-700"
+							onClick={handleValueStream}
+						>
+							Value Stream
+						</button>
+					)}
 					<button
 						className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
 						onClick={handleOpenLogs}
 					>
 						Logs
+					</button>
+					<button
+						className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+						onClick={handleNetFlow}
+					>
+						Net Flow
 					</button>
 
 				</div>

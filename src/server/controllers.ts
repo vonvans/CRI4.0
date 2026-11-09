@@ -6,6 +6,7 @@ import { promises as fsp } from 'fs';
 import os from 'os';
 import AdmZip from 'adm-zip';
 import { generateZipNode } from '../shared/make-node';
+import { startArkimeCapture, resetArkimeData, stopArkimeCapture, arkimeViewUrls, arkimeSessionsUrl } from '../shared/arkime';
 
 // Type definitions
 type CurrentLab = {
@@ -24,28 +25,157 @@ if (!fs.existsSync(SAVES_DIR)) {
     fs.mkdirSync(SAVES_DIR, { recursive: true });
 }
 
+let LAST_ATTACK_OUTPUT = "";
+let IS_ATTACK_RUNNING = false;
+
 
 // Helper to send logs to all connected clients
-const sendLog = (level: 'log' | 'error' | 'warn' | 'info' | 'debug', message: string) => {
+const sendLog = (level: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'build-done', message: string) => {
     const logEntry = JSON.stringify({ level, message });
-    clients.forEach(client => client.write(`data: ${logEntry}\n\n`));
-    console.log(`[${level.toUpperCase()}] ${message}`); // Keep server console logs too
+    clients = clients.filter(client => {
+        try { client.write(`data: ${logEntry}\n\n`); return true; } catch { return false; }
+    });
+    console.log(`[${level.toUpperCase()}] ${message}`);
 };
 
 // --- Controllers ---
 
 export const subscribeToLogs = (req: Request, res: Response) => {
-    const headers = {
-        'Content-Type': 'text/event-stream',
-        'Connection': 'keep-alive',
-        'Cache-Control': 'no-cache'
-    };
-    res.writeHead(200, headers);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // send headers immediately so EventSource establishes
 
     clients.push(res);
 
     req.on('close', () => {
         clients = clients.filter(client => client !== res);
+    });
+};
+
+type BuildState = { done: boolean; success?: boolean; image?: string; dockerOutput: string; scriptStdout?: string; scriptStderr?: string };
+const buildResults = new Map<string, BuildState>();
+
+export const buildCustomImage = async (req: Request, res: Response) => {
+    const { machineName, baseImage, buildScript } = req.body;
+    if (!machineName || !baseImage || !buildScript) {
+        return res.status(400).json({ started: false });
+    }
+    const buildId = `${Date.now()}-${String(machineName).replace(/[^a-z0-9]/gi, '')}`;
+
+    // Mutable state object stored by reference — polling sees partial dockerOutput in real time
+    const state: BuildState = { done: false, dockerOutput: '' };
+    buildResults.set(buildId, state);
+    res.json({ started: true, buildId });
+
+    const tag = `cri-custom-${String(machineName).toLowerCase().replace(/[^a-z0-9]/g, '-')}:latest`;
+    let tmpDir = '';
+    try {
+        tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cri-build-'));
+        const dockerfile = [
+            `FROM ${baseImage}`,
+            `ENV DEBIAN_FRONTEND=noninteractive`,
+            `COPY build.sh /build.sh`,
+            `RUN chmod +x /build.sh && /bin/sh /build.sh 1>/build_stdout.log 2>/build_stderr.log`,
+        ].join('\n') + '\n';
+        await fsp.writeFile(path.join(tmpDir, 'Dockerfile'), dockerfile);
+        await fsp.writeFile(path.join(tmpDir, 'build.sh'), buildScript);
+
+        const success = await new Promise<boolean>((resolve) => {
+            const proc = spawn('docker', ['build', '--no-cache', '--progress=plain', '-t', tag, tmpDir]);
+            proc.stdout.on('data', (d: Buffer) => { state.dockerOutput += d.toString(); });
+            proc.stderr.on('data', (d: Buffer) => { state.dockerOutput += d.toString(); });
+            proc.on('close', (code) => resolve(code === 0));
+            proc.on('error', (err) => { state.dockerOutput += `Error: ${err.message}\n`; resolve(false); });
+        });
+
+        let scriptStdout = '';
+        let scriptStderr = '';
+        if (success) {
+            const catFile = (f: string) => new Promise<string>((resolve) => {
+                const p = spawn('docker', ['run', '--rm', tag, 'cat', f]);
+                let out = '';
+                p.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+                p.on('close', () => resolve(out));
+                p.on('error', () => resolve(''));
+            });
+            [scriptStdout, scriptStderr] = await Promise.all([catFile('/build_stdout.log'), catFile('/build_stderr.log')]);
+        }
+
+        state.done = true;
+        state.success = success;
+        state.image = success ? tag : undefined;
+        state.scriptStdout = scriptStdout;
+        state.scriptStderr = scriptStderr;
+    } catch (err) {
+        state.done = true;
+        state.success = false;
+        state.dockerOutput += String(err);
+    } finally {
+        if (tmpDir) fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+        setTimeout(() => buildResults.delete(buildId), 600_000);
+    }
+};
+
+export const loadDockerImage = async (req: Request, res: Response) => {
+    let tmpFile = '';
+    try {
+        tmpFile = path.join(os.tmpdir(), `cri-load-${Date.now()}.tar`);
+        await new Promise<void>((resolve, reject) => {
+            const ws = fs.createWriteStream(tmpFile);
+            req.pipe(ws);
+            ws.on('finish', resolve);
+            ws.on('error', reject);
+            req.on('error', reject);
+        });
+
+        const { tag, error } = await new Promise<{ tag?: string; error?: string }>((resolve) => {
+            let output = '';
+            const proc = spawn('docker', ['load', '-i', tmpFile]);
+            proc.stdout.on('data', (d: Buffer) => { output += d.toString(); });
+            proc.stderr.on('data', (d: Buffer) => { output += d.toString(); });
+            proc.on('close', (code) => {
+                if (code !== 0) { resolve({ error: output.trim() || 'docker load failed' }); return; }
+                const match = output.match(/Loaded image(?:: | ID: )(.+)/);
+                resolve({ tag: match ? match[1].trim() : '' });
+            });
+            proc.on('error', (err) => resolve({ error: err.message }));
+        });
+
+        if (error) return res.status(500).json({ error });
+        res.json({ tag });
+    } catch (err) {
+        res.status(500).json({ error: String(err) });
+    } finally {
+        if (tmpFile) fsp.rm(tmpFile, { force: true }).catch(() => {});
+    }
+};
+
+export const getBuildResult = (req: Request, res: Response) => {
+    const result = buildResults.get(req.params.buildId);
+    if (!result) return res.json({ done: false, found: false });
+    res.json(result);
+};
+
+export const dockerSearch = async (req: Request, res: Response) => {
+    const q = String(req.query.q || '').replace(/[^a-zA-Z0-9\-_.:/]/g, '').slice(0, 128);
+    if (!q) return res.json([]);
+    exec(`docker search "${q}" --format "{{json .}}" --limit 25`, (error, stdout) => {
+        if (error) { res.json([]); return; }
+        const results = stdout.trim().split('\n')
+            .filter(line => line.trim())
+            .map(line => { try { return JSON.parse(line); } catch { return null; } })
+            .filter(Boolean);
+        res.json(results);
+    });
+};
+
+export const getAllLocalImages = async (req: Request, res: Response) => {
+    exec('docker images --format "{{.Repository}}:{{.Tag}}"', (error, stdout) => {
+        if (error) { res.json([]); return; }
+        const images = stdout.trim().split('\n')
+            .filter(line => line.trim() && !line.includes('<none>'));
+        res.json(images);
     });
 };
 
@@ -104,45 +234,43 @@ export const getContainerInspect = async (req: Request, res: Response) => {
     const { containerName } = req.body;
     if (!containerName) return res.status(400).json({ error: 'Container name required' });
 
-    // 1. Find the container by name pattern (Kathara: _machineName_)
-    exec(`docker ps --filter name=_${containerName}_ --format "{{.Names}}"`, (findErr, findStdout) => {
-        if (findErr) {
-            console.error(`Error searching for container ${containerName}: ${findErr.message}`);
-            if (findErr.message.includes('permission denied') || findErr.message.includes('connect to the docker API')) {
-                return res.status(500).json({ error: "Docker permission denied. Run: sudo usermod -aG docker $USER" });
-            }
-            return res.json([]);
-        }
+    // Improved resolution
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${containerName}_` : `_${containerName}_`,
+        `_${containerName}_`
+    ];
 
-        const resolvedName = findStdout.trim().split("\n")[0];
-        if (!resolvedName) {
-            // Fallback: exact match
-            exec(`docker inspect ${containerName}`, (inspectErr, inspectStdout) => {
-                if (inspectErr) {
-                    console.warn(`Could not find container for ${containerName}`);
-                    res.json([]);
-                } else {
-                    try { res.json(JSON.parse(inspectStdout)); }
-                    catch (e) { res.json([]); }
-                }
+    const findContainer = async () => {
+        for (const pattern of patterns) {
+            const name = await new Promise<string | null>(r => {
+                exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
             });
-            return;
+            if (name) return name;
         }
-
-        // 2. Inspect the found container
-        exec(`docker inspect ${resolvedName}`, (inspectErr, inspectStdout) => {
-            if (inspectErr) {
-                console.error("Inspect failed:", inspectErr.message);
-                res.json([]);
-            } else {
-                try {
-                    res.json(JSON.parse(inspectStdout));
-                } catch (e) {
-                    console.error("JSON parse error:", e);
-                    res.json([]);
-                }
-            }
+        return await new Promise<string | null>(r => {
+            exec(`docker ps --filter ancestor=${containerName} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
         });
+    };
+
+    const resolvedName = await findContainer();
+
+    if (!resolvedName) {
+        console.warn(`Could not find container for ${containerName}`);
+        return res.json([]);
+    }
+
+    exec(`docker inspect ${resolvedName}`, (inspectErr, inspectStdout) => {
+        if (inspectErr) {
+            console.error("Inspect failed:", inspectErr.message);
+            res.json([]);
+        } else {
+            try {
+                res.json(JSON.parse(inspectStdout));
+            } catch (e) {
+                console.error("JSON parse error:", e);
+                res.json([]);
+            }
+        }
     });
 };
 
@@ -152,55 +280,38 @@ export const getContainerLogs = async (req: Request, res: Response) => {
 
     console.log(`🔍 getContainerLogs called for: ${containerName}`);
 
-    // Try to find container using the same logic as terminal and Electron handler
-    // 1. First try by ancestor (image name)
-    exec(`docker ps --filter ancestor=${containerName} --format "{{.Names}}"`, (err1, stdout1) => {
-        const nameByAncestor = stdout1 ? stdout1.trim().split("\n")[0] : null;
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${containerName}_` : `_${containerName}_`,
+        `_${containerName}_`
+    ];
 
-        if (nameByAncestor) {
-            console.log(`✅ Found by ancestor: ${nameByAncestor}`);
-            exec(`docker logs ${nameByAncestor}`, (logsErr, logsStdout) => {
-                if (logsErr) {
-                    console.error("Docker logs failed:", logsErr.message);
-                    res.json({ logs: '' });
-                } else {
-                    console.log(`✅ Got logs: ${logsStdout.length} chars`);
-                    res.json({ logs: logsStdout });
-                }
+    const findContainer = async () => {
+        for (const pattern of patterns) {
+            const name = await new Promise<string | null>(r => {
+                exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
             });
-            return;
+            if (name) return name;
         }
-
-        // 2. Fallback: try by name pattern (Kathara: _containerName_)
-        exec(`docker ps --filter name=_${containerName}_ --format "{{.Names}}"`, (err2, stdout2) => {
-            const nameByPattern = stdout2 ? stdout2.trim().split("\n")[0] : null;
-
-            if (nameByPattern) {
-                console.log(`✅ Found by pattern: ${nameByPattern}`);
-                exec(`docker logs ${nameByPattern}`, (logsErr, logsStdout) => {
-                    if (logsErr) {
-                        console.error("Docker logs failed:", logsErr.message);
-                        res.json({ logs: '' });
-                    } else {
-                        console.log(`✅ Got logs: ${logsStdout.length} chars`);
-                        res.json({ logs: logsStdout });
-                    }
-                });
-                return;
-            }
-
-            // 3. Last resort: try exact name
-            console.warn(`⚠️ Container not found by ancestor or pattern, trying exact: ${containerName}`);
-            exec(`docker logs ${containerName}`, (logsErr, logsStdout) => {
-                if (logsErr) {
-                    console.error(`❌ Could not get logs: ${logsErr.message}`);
-                    res.json({ logs: '' });
-                } else {
-                    console.log(`✅ Got logs (exact): ${logsStdout.length} chars`);
-                    res.json({ logs: logsStdout });
-                }
-            });
+        return await new Promise<string | null>(r => {
+            exec(`docker ps --filter ancestor=${containerName} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
         });
+    };
+
+    const resolvedName = await findContainer();
+
+    if (!resolvedName) {
+        sendLog('warn', `⚠️ Container not found for ${containerName}. Cannot get logs.`);
+        return res.json({ logs: '' });
+    }
+
+    exec(`docker logs ${resolvedName}`, (logsErr, logsStdout) => {
+        if (logsErr) {
+            console.error(`❌ Could not get logs: ${logsErr.message}`);
+            res.json({ logs: '' });
+        } else {
+            console.log(`✅ Got logs: ${logsStdout.length} chars`);
+            res.json({ logs: logsStdout });
+        }
     });
 };
 
@@ -237,39 +348,37 @@ export const simulateAttack = async (req: Request, res: Response) => {
     }
 
     try {
-        const containerName = await new Promise<string>((resolve, reject) => {
-            // First try finding by ancestor (image)
-            exec(`docker ps --filter ancestor=${container} --format "{{.Names}}"`, (err, stdout, stderr) => {
-                const nameByAncestor = stdout ? stdout.trim().split("\n")[0] : null;
-
-                if (nameByAncestor) {
-                    sendLog('log', `✅ Using container (by image): ${nameByAncestor}`);
-                    return resolve(nameByAncestor);
+        const resolvedName = await (async () => {
+            const patterns = [
+                CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${container}_` : `_${container}_`,
+                `_${container}_`
+            ];
+            for (const pattern of patterns) {
+                const name = await new Promise<string | null>(r => {
+                    exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+                });
+                if (name) {
+                    sendLog('log', `✅ Found container by name (${pattern}): ${name}`);
+                    return name;
                 }
-
-                // Fallback: try finding by name (matches *container*)
-                // Kathara containers are typically: kathara_<user>_<labhash>_<machinename>_<uid>
-                // So checking if name contains `_${container}_` covers it.
-                exec(`docker ps --filter name=_${container}_ --format "{{.Names}}"`, (err2, stdout2, stderr2) => {
-                    if (err2) {
-                        const msg = `❌ Error looking for container: ${stderr2 || err2.message}`;
-                        sendLog('error', msg);
-                        return reject(msg);
-                    }
-                    const nameByName = stdout2.trim().split("\n")[0];
-                    if (!nameByName) {
-                        const msg = `⚠️ No running container found for image/name: ${container}`;
-                        sendLog('warn', msg);
-                        return reject(msg);
-                    }
-                    sendLog('log', `✅ Using container (by name): ${nameByName}`);
-                    resolve(nameByName);
+            }
+            return await new Promise<string | null>(r => {
+                exec(`docker ps --filter ancestor=${container} --format "{{.Names}}"`, (e, s) => {
+                    const name = s ? s.trim().split("\n")[0] : null;
+                    if (name) sendLog('log', `✅ Found container by ancestor: ${name}`);
+                    r(name);
                 });
             });
-        });
+        })();
+
+        if (!resolvedName) {
+            const msg = `⚠️ No running container found for image/name: ${container}`;
+            sendLog('warn', msg);
+            throw new Error(msg);
+        }
 
         const output = await new Promise<string>((resolve, reject) => {
-            const dockerArgs = ['exec', containerName, ...args];
+            const dockerArgs = ['exec', resolvedName, ...args];
             sendLog('log', `Spawning process: docker ${dockerArgs.join(' ')}`);
 
             const proc = spawn('docker', dockerArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -279,16 +388,22 @@ export const simulateAttack = async (req: Request, res: Response) => {
             proc.stdout.on('data', (data) => {
                 const message = data.toString();
                 stdout += message;
+                LAST_ATTACK_OUTPUT += message;
+                // Keep only last 10000 chars roughly
+                if (LAST_ATTACK_OUTPUT.length > 50000) LAST_ATTACK_OUTPUT = LAST_ATTACK_OUTPUT.slice(-50000);
                 sendLog('log', message);
             });
 
             proc.stderr.on('data', (data) => {
                 const message = data.toString();
                 stderr += message;
+                LAST_ATTACK_OUTPUT += `\n[ERROR] ${message}`;
                 sendLog('error', message);
             });
 
+            IS_ATTACK_RUNNING = true;
             proc.on('close', (code) => {
+                IS_ATTACK_RUNNING = false;
                 if (code !== 0) {
                     const errorMessage = `❌ Command failed (code ${code}): ${stderr || `exit ${code}`}`;
                     sendLog('error', errorMessage);
@@ -312,7 +427,79 @@ export const simulateAttack = async (req: Request, res: Response) => {
     }
 };
 
+export const getAttackStatus = async (req: Request, res: Response) => {
+    res.json({ 
+        isRunning: IS_ATTACK_RUNNING,
+        output: LAST_ATTACK_OUTPUT 
+    });
+};
+
+export const clearAttackStatus = async (req: Request, res: Response) => {
+    LAST_ATTACK_OUTPUT = "";
+    res.json({ success: true });
+};
+
+export const readAttackLog = async (req: Request, res: Response) => {
+    const { container } = req.body;
+    if (!container) return res.status(400).json({ error: 'Container name required' });
+
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${container}_` : `_${container}_`,
+        `_${container}_`
+    ];
+
+    let resolvedName: string | null = null;
+    for (const pattern of patterns) {
+        const name = await new Promise<string | null>(r => {
+            exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+        });
+        if (name) { resolvedName = name; break; }
+    }
+
+    if (!resolvedName) return res.json({ log: '' });
+
+    exec(`docker exec ${resolvedName} cat /attack.log 2>/dev/null`, (err, stdout) => {
+        res.json({ log: err ? '' : stdout });
+    });
+};
+
+// Live "value stream" for an MQTT broker: subscribes to all topics with
+// mosquitto_sub inside the broker container, writing to /value_stream.log, then
+// returns the accumulated output. The subscriber is (re)started idempotently via
+// a pidfile guard so polling this endpoint never spawns duplicate subscribers.
+export const readValueStream = async (req: Request, res: Response) => {
+    const { container } = req.body;
+    if (!container) return res.status(400).json({ error: 'Container name required' });
+
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${container}_` : `_${container}_`,
+        `_${container}_`
+    ];
+
+    let resolvedName: string | null = null;
+    for (const pattern of patterns) {
+        const name = await new Promise<string | null>(r => {
+            exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+        });
+        if (name) { resolvedName = name; break; }
+    }
+
+    if (!resolvedName) return res.json({ log: '' });
+
+    // Start the subscriber only if it isn't already running (pidfile + kill -0).
+    const startCmd = `docker exec -d ${resolvedName} sh -c 'if [ ! -f /value_stream.pid ] || ! kill -0 "$(cat /value_stream.pid 2>/dev/null)" 2>/dev/null; then nohup mosquitto_sub -h 127.0.0.1 -p 1884 -t "#" -v > /value_stream.log 2>&1 & echo $! > /value_stream.pid; fi'`;
+    await new Promise<void>(r => exec(startCmd, () => r()));
+
+    exec(`docker exec ${resolvedName} tail -c 200000 /value_stream.log 2>/dev/null`, (err, stdout) => {
+        res.json({ log: err ? '' : stdout });
+    });
+};
+
+
 export const runSimulation = async (req: Request, res: Response) => {
+    // Custom images may need to be pulled from Docker Hub — disable the socket
+    // timeout so the connection isn't dropped while Kathara pulls the image.
+    req.socket.setTimeout(0);
     const { machines, labInfo, sudoPassword } = req.body;
     sendLog('log', `machines? ${Array.isArray(machines)} ${machines?.length}`);
 
@@ -376,11 +563,20 @@ export const runSimulation = async (req: Request, res: Response) => {
                 stdio: ['pipe', 'pipe', 'pipe']
             });
 
-            // Write password to stdin only when using sudo
+            // Write password to stdin only when using sudo.
+            // Do NOT close stdin — Kathara may ask "pull new image? [y/n]:" at any
+            // point and needs to be able to read our answer.
             if (sudoPassword) {
                 childVal.stdin.write(sudoPassword + '\n');
             }
-            childVal.stdin.end();
+
+            // Auto-answer Kathara's interactive image-update prompts with "n"
+            // so the process never blocks waiting for human input.
+            const answerKatharaPrompts = (msg: string) => {
+                if (msg.includes('[y/n]:') || msg.includes('[Y/n]:') || msg.includes('[y/N]:')) {
+                    childVal.stdin.write('n\n');
+                }
+            };
 
             let stdoutData = '';
             let stderrData = '';
@@ -389,10 +585,12 @@ export const runSimulation = async (req: Request, res: Response) => {
                 const msg = data.toString();
                 stdoutData += msg;
                 sendLog('log', msg);
+                answerKatharaPrompts(msg);
             });
 
             childVal.stderr.on('data', (data) => {
                 const msg = data.toString();
+                answerKatharaPrompts(msg);
                 // Filter out standard sudo prompt if it leaks, though -S implies non-interactive
                 if (!msg.includes('[sudo] password for')) {
                     stderrData += msg;
@@ -419,6 +617,13 @@ export const runSimulation = async (req: Request, res: Response) => {
                 reject(errorMessage);
             });
         });
+
+        // Arkime infrastructure is already up (started at platform boot). Empty
+        // any data from a previous run, then attach captures to this new lab.
+        resetArkimeData(sendLog)
+            .then(() => startArkimeCapture(sendLog))
+            .catch((e) => sendLog('error', `🦈 Arkime start error: ${e?.message || e}`));
+
         res.json({ output });
 
     } catch (err: any) {
@@ -446,6 +651,11 @@ export const stopSimulation = async (req: Request, res: Response) => {
     }
 
     const { name, labsDir } = CURRENT_LAB;
+
+    // Detach the per-machine captures together with the lab, but keep the Arkime
+    // infrastructure (OpenSearch + viewer) running so Statistics stays reachable.
+    stopArkimeCapture(sendLog).catch(() => {});
+
     const safeName = String(name).replace(/"/g, '\"');
     const cmd = `kathara lclean -d "${labsDir}"`;
 
@@ -475,66 +685,76 @@ export const stopSimulation = async (req: Request, res: Response) => {
     }
 };
 
+export const arkimeStatsUrl = async (_req: Request, res: Response) => {
+    res.json({ urls: arkimeViewUrls() });
+};
+
+export const arkimeNetFlow = async (req: Request, res: Response) => {
+    const { ips } = req.body;
+    res.json({ url: arkimeSessionsUrl(Array.isArray(ips) ? ips : []) });
+};
+
 export const getMachineContent = async (req: Request, res: Response) => {
     const { machineName, type } = req.body;
     if (!machineName) return res.status(400).json({ error: 'Machine name required' });
 
     sendLog('log', `💾 getMachineContent called for: ${machineName} (${type})`);
 
-    // Try to find container by name pattern (Kathara: _machineName_)
-    const nameCmd = `docker ps --filter name=_${machineName}_ --format "{{.Names}}"`;
+    // Try to find container: prefer CURRENT_LAB name pattern, then generic, then ancestor
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${machineName}_` : `_${machineName}_`,
+        `_${machineName}_`
+    ];
 
-    exec(nameCmd, (err, stdout) => {
-        if (err) {
-            sendLog('error', `❌ Error finding container for ${machineName}: ${err.message}`);
-            return res.status(500).json({ error: err.message });
+    const findContainer = async () => {
+        for (const pattern of patterns) {
+            const name = await new Promise<string | null>(r => {
+                exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+            });
+            if (name) return name;
         }
+        // Last resort: ancestor
+        return await new Promise<string | null>(r => {
+            exec(`docker ps --filter ancestor=${machineName} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+        });
+    };
 
-        let containerName = stdout ? stdout.trim().split("\n")[0] : null;
+    const containerName = await findContainer();
 
-        const fetchContent = (targetContainer: string) => {
-            let cmd = "";
-            if (type === 'scada') {
-                const filePath = "/usr/src/app/FUXA/server/_appdata/project.fuxap.db";
-                cmd = `docker exec ${targetContainer} base64 "${filePath}"`;
-            } else if (type === 'plc') {
-                // For PLC, we need to find the ST file in /shared/
-                // We'll use a shell command to find the .st file and base64 it
-                cmd = `docker exec ${targetContainer} sh -c 'find /shared -name "*.st" -print -quit | xargs base64'`;
-            } else {
-                return res.status(400).json({ error: "Invalid machine type for content fetching" });
-            }
+    if (!containerName) {
+        sendLog('warn', `⚠️ Container not found for ${machineName}. Skipping content fetch.`);
+        return res.json({ output: "" });
+    }
 
-            exec(cmd, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
-                if (error) {
-                    // It's possible the file doesn't exist yet (not started or no program)
-                    sendLog('warn', `⚠️ Failed to read content for ${machineName}: ${stderr || error.message}`);
-                    return res.json({ output: "" }); // Return empty string instead of erroring out entire save
-                } else {
-                    // SANITIZE: Remove any non-base64 characters (e.g., shell noise, headers)
-                    const cleanOutput = stdout.replace(/[^A-Za-z0-9+/=]/g, '');
-                    sendLog('log', `✅ Content read for ${machineName} (${cleanOutput.length} chars)`);
-                    res.json({ output: cleanOutput });
-                }
-            });
-        };
+    const fetchContent = async (targetContainer: string) => {
+        let cmd = "";
+        if (type === 'scada') {
+            // Trigger SAVE in FUXA before reading
+            const saveCmd = `docker exec ${targetContainer} curl -s -X POST http://localhost:1881/api/projectData -H "Content-Type: application/json" -d '{"cmd": "save-project"}'`;
+            await new Promise(r => exec(saveCmd, r));
+            await new Promise(r => setTimeout(r, 500)); // Brief pause for disk write
 
-        if (!containerName) {
-            sendLog('warn', `⚠️ Container for ${machineName} not found by name pattern. Trying ancestor...`);
-            exec(`docker ps --filter ancestor=${machineName} --format "{{.Names}}"`, (err2, stdout2) => {
-                containerName = stdout2 ? stdout2.trim().split("\n")[0] : null;
-                if (containerName) {
-                    fetchContent(containerName);
-                } else {
-                    // Container not running, just return empty content (maybe not started yet)
-                    sendLog('warn', `⚠️ Container not found for ${machineName}. Skipping content fetch.`);
-                    res.json({ output: "" });
-                }
-            });
+            const filePath = "/usr/src/app/FUXA/server/_appdata/project.fuxap.db";
+            cmd = `docker exec ${targetContainer} base64 "${filePath}"`;
+        } else if (type === 'plc') {
+            cmd = `docker exec ${targetContainer} sh -c 'find /shared -name "*.st" -print -quit | xargs base64'`;
         } else {
-            fetchContent(containerName);
+            return res.status(400).json({ error: "Invalid machine type for content fetching" });
         }
-    });
+
+        exec(cmd, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+            if (error) {
+                sendLog('warn', `⚠️ Failed to read content for ${machineName}: ${stderr || error.message}`);
+                return res.json({ output: "" });
+            } else {
+                const cleanOutput = stdout.replace(/[^A-Za-z0-9+/=]/g, '');
+                sendLog('log', `✅ Content read for ${machineName} (${cleanOutput.length} chars)`);
+                res.json({ output: cleanOutput });
+            }
+        });
+    };
+
+    fetchContent(containerName);
 };
 
 // --- Save System Controllers ---
@@ -797,50 +1017,53 @@ export const saveScadaProject = async (req: Request, res: Response) => {
 
     sendLog('log', `💾 saveScadaProject called for: ${machineName}`);
 
-    // Try to find container by name pattern (Kathara: _machineName_)
-    const nameCmd = `docker ps --filter name=_${machineName}_ --format "{{.Names}}"`;
+    // Try to find container: prefer CURRENT_LAB name pattern, then generic, then ancestor
+    const patterns = [
+        CURRENT_LAB ? `kathara_.*_${CURRENT_LAB.name}_${machineName}_` : `_${machineName}_`,
+        `_${machineName}_`
+    ];
 
-    exec(nameCmd, (err, stdout) => {
-        if (err) {
-            sendLog('error', `❌ Error finding container for ${machineName}: ${err.message}`);
-            return res.status(500).json({ error: err.message });
-        }
-
-        let containerName = stdout ? stdout.trim().split("\n")[0] : null;
-
-        const fetchContent = (targetContainer: string) => {
-            // Path valid for FUXA
-            const filePath = "/usr/src/app/FUXA/server/_appdata/project.fuxap.db";
-            const cmd = `docker exec ${targetContainer} base64 "${filePath}"`;
-
-            exec(cmd, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
-                if (error) {
-                    sendLog('warn', `⚠️ Failed to read project db for ${machineName}: ${stderr || error.message}`);
-                    return res.status(500).json({ error: "Failed to read project content" });
-                } else {
-                    // SANITIZE: Remove any non-base64 characters
-                    const cleanOutput = stdout.replace(/[^A-Za-z0-9+/=]/g, '');
-                    sendLog('log', `✅ Project DB read for ${machineName} (${cleanOutput.length} chars)`);
-                    res.json({ output: cleanOutput });
-                }
+    const findContainer = async () => {
+        for (const pattern of patterns) {
+            const name = await new Promise<string | null>(r => {
+                exec(`docker ps --filter name=${pattern} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
             });
-        };
-
-        if (!containerName) {
-            sendLog('warn', `⚠️ Container for ${machineName} not found by name pattern. Trying ancestor...`);
-            exec(`docker ps --filter ancestor=${machineName} --format "{{.Names}}"`, (err2, stdout2) => {
-                containerName = stdout2 ? stdout2.trim().split("\n")[0] : null;
-                if (containerName) {
-                    fetchContent(containerName);
-                } else {
-                    sendLog('warn', `⚠️ Container not found for ${machineName}. Cannot save project.`);
-                    res.status(404).json({ error: "Container not found" });
-                }
-            });
-        } else {
-            fetchContent(containerName);
+            if (name) return name;
         }
-    });
+        return await new Promise<string | null>(r => {
+            exec(`docker ps --filter ancestor=${machineName} --format "{{.Names}}"`, (e, s) => r(s ? s.trim().split("\n")[0] : null));
+        });
+    };
+
+    const containerName = await findContainer();
+
+    if (!containerName) {
+        sendLog('warn', `⚠️ Container not found for ${machineName}. Cannot save project.`);
+        return res.status(404).json({ error: "Container not found" });
+    }
+
+    const fetchContent = async (targetContainer: string) => {
+        // Trigger SAVE in FUXA before reading
+        const saveCmd = `docker exec ${targetContainer} curl -s -X POST http://localhost:1881/api/projectData -H "Content-Type: application/json" -d '{"cmd": "save-project"}'`;
+        await new Promise(r => exec(saveCmd, r));
+        await new Promise(r => setTimeout(r, 500)); // Brief pause for disk write
+
+        const filePath = "/usr/src/app/FUXA/server/_appdata/project.fuxap.db";
+        const cmd = `docker exec ${targetContainer} base64 "${filePath}"`;
+
+        exec(cmd, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+            if (error) {
+                sendLog('warn', `⚠️ Failed to read project db for ${machineName}: ${stderr || error.message}`);
+                return res.status(500).json({ error: "Failed to read project content" });
+            } else {
+                const cleanOutput = stdout.replace(/[^A-Za-z0-9+/=]/g, '');
+                sendLog('log', `✅ Project DB read for ${machineName} (${cleanOutput.length} chars)`);
+                res.json({ output: cleanOutput });
+            }
+        });
+    };
+
+    fetchContent(containerName);
 };
 
 export const deleteLokiLogs = async (req: Request, res: Response) => {

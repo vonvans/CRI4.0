@@ -9,7 +9,7 @@ import { Card, CardBody, Input, Textarea } from "@nextui-org/react";
 import { Radio, RadioGroup } from "@nextui-org/react";
 import { CheckboxGroup, Checkbox } from "@nextui-org/react";
 import { Button } from "@nextui-org/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaWrench } from "react-icons/fa6";
 import { FaArrowRotateLeft } from "react-icons/fa6";
 import { useContext } from "react";
@@ -42,8 +42,6 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
   // Initialize local state from machine config (if available) or env values (legacy/fallback)
   const [target1, setTarget1] = useState(() => getConfig("target1", getEnvValue("TARGET1")));
   const [target2, setTarget2] = useState(() => getConfig("target2", getEnvValue("TARGET2")));
-  const [usernames, setUsernames] = useState(() => getConfig("usernames", getEnvValue("USERNAMES") || "root\nadmin\nuser\nopenplc"));
-  const [passwords, setPasswords] = useState(() => getConfig("passwords", getEnvValue("PASSWORDS") || "password\n12345\nadmin\nroot\nopenplc"));
   const [view, setView] = useState(() => getConfig("view", "same"));
 
   // Update machine state whenever local state changes
@@ -61,6 +59,35 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
       return m;
     }));
   };
+
+  useEffect(() => {
+    const attackerDomain = attacker?.interfaces?.if?.[0]?.eth?.domain;
+    const cleanIps = extractTargetIPs(targets || [], attackerDomain);
+    
+    if (cleanIps.length > 0) {
+      if (target1 !== cleanIps[0]) {
+        setTarget1(cleanIps[0]);
+        updateMachineConfig("target1", cleanIps[0]);
+      }
+    } else {
+      if (target1 !== "") {
+        setTarget1("");
+        updateMachineConfig("target1", "");
+      }
+    }
+
+    if (cleanIps.length > 1) {
+      if (target2 !== cleanIps[1]) {
+        setTarget2(cleanIps[1]);
+        updateMachineConfig("target2", cleanIps[1]);
+      }
+    } else {
+      if (target2 !== "") {
+        setTarget2("");
+        updateMachineConfig("target2", "");
+      }
+    }
+  }, [targets]);
 
   // Helper to update specific root-level properties of the attacker machine
   const updateMachineData = (updates) => {
@@ -80,16 +107,6 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
   const handleTarget2Change = (val) => {
     setTarget2(val);
     updateMachineConfig("target2", val);
-  };
-
-  const handleUsernamesChange = (val) => {
-    setUsernames(val);
-    updateMachineConfig("usernames", val);
-  };
-
-  const handlePasswordsChange = (val) => {
-    setPasswords(val);
-    updateMachineConfig("passwords", val);
   };
 
   const handleViewChange = (val) => {
@@ -118,23 +135,14 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
 
           if (val && val.includes("modbustcp-injection")) {
             // Per ModbusTCP injection, passiamo i parametri come variabili d'ambiente a entrypoint.sh
-            // Assumiamo eth0 come interfaccia di default se non diversamente specificato
             const iface = "eth1";
+            const finalTarget1 = target1 || cleanIps[0] || "";
+            const finalTarget2 = target2 || cleanIps[1] || "";
             attackArgs = [
               'env',
               `INTERFACE=${iface}`,
-              `TARGET1=${target1}`,
-              `TARGET2=${target2}`,
-              '/usr/local/bin/entrypoint.sh'
-            ];
-          }
-
-          if (val && val.includes("crack-plc")) {
-            attackArgs = [
-              'env',
-              `USERNAMES=${usernames}`,
-              `PASSWORDS=${passwords}`,
-              `TARGET=${cleanIps[0] || ""}`,
+              `TARGET1=${finalTarget1}`,
+              `TARGET2=${finalTarget2}`,
               '/usr/local/bin/entrypoint.sh'
             ];
           }
@@ -145,7 +153,6 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
           setAttackLoaded(true);
           return {
             ...m,
-            name: "attacker",
             targets: targets,
             attackLoaded: true,
             attackImage: val,
@@ -155,8 +162,6 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
             attackConfig: {
               target1,
               target2,
-              usernames,
-              passwords,
               view
             }
           };
@@ -182,36 +187,26 @@ function Injection({ attacker, attacks, isLoading, machines, setMachines, handle
       <div className="grid items-start">
         <Button isLoading={isLoading} className="bg-secondary" startContent={isLoading ? null : <FaArrowRotateLeft />} onClick={handleRefresh}>{isLoading ? "Refreshing images..." : "Refresh images"}</Button>
       </div>
-      <div className="flex-grow">
+      <div className={`flex-grow transition-opacity duration-300 ${attacker?.attackLoaded ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="grid gap-2">
           <MachineSelector machines={machines} setTargets={handleTargetsChange} attacker={attacker} view={view} onViewChange={handleViewChange} />
           <AttackSelector type="injection" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh} />
 
-          {selectedImage && selectedImage.includes("modbustcp-injection") && (
-            <Card>
-              <CardBody>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input label="Target 1 IP" value={target1} onValueChange={handleTarget1Change} placeholder="e.g. 192.168.1.10" />
-                  <Input label="Target 2 IP" value={target2} onValueChange={handleTarget2Change} placeholder="e.g. 192.168.1.20" />
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-          {selectedImage && selectedImage.includes("crack-plc") && (
-            <Card>
-              <CardBody>
-                <div className="grid gap-2">
-                  {/* Target is selected via checkboxes above */}
-
+          {selectedImage && selectedImage.includes("modbustcp-injection") && (() => {
+            const attackerDomain = attacker?.interfaces?.if?.[0]?.eth?.domain;
+            const cleanIps = extractTargetIPs(targets || [], attackerDomain);
+            return (
+              <Card>
+                <CardBody>
                   <div className="grid grid-cols-2 gap-2">
-                    <Textarea label="Usernames" value={usernames} onValueChange={handleUsernamesChange} placeholder="admin\nroot" />
-                    <Textarea label="Passwords" value={passwords} onValueChange={handlePasswordsChange} placeholder="openplc\n123456" />
+                    <Input label="Target 1 IP" value={target1} onValueChange={handleTarget1Change} placeholder={cleanIps[0] || "e.g. 192.168.1.10"} />
+                    <Input label="Target 2 IP" value={target2} onValueChange={handleTarget2Change} placeholder={cleanIps[1] || "e.g. 192.168.1.20"} />
                   </div>
-                </div>
-              </CardBody>
-            </Card>
-          )}
+                </CardBody>
+              </Card>
+            );
+          })()}
+
         </div>
       </div>
       <div className="grid">

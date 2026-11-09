@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import { router } from './routes';
+import { startArkimeInfra } from '../shared/arkime';
 import path from 'path';
 
 import os from 'os';
@@ -50,16 +51,16 @@ function runCmd(cmd: string, args: string[], opts: { cwd?: string, timeoutMs?: n
 // Cleanup function
 async function cleanupLabs() {
     const labsDir = path.join(os.homedir(), 'kathara-labs');
+    console.log('🧹 Startup: cleaning previous labs...');
     try {
-        console.log('🧹 Startup: cleaning previous labs...');
-        // 1. Stop simulations
         await runCmd('kathara', ['lclean', '-d', labsDir], { timeoutMs: 20_000 });
-
-        // 2. Remove directory
+    } catch {
+        // kathara not available — that's fine
+    }
+    try {
         await fsp.rm(labsDir, { recursive: true, force: true });
-        console.log('✅ Startup: removed labs directory');
-    } catch (e) {
-        console.error('❌ Startup cleanup failed:', e);
+    } catch {
+        // directory may not exist — that's fine
     }
 }
 
@@ -71,6 +72,17 @@ app.use((req, res, next) => {
     console.log(`[${req.method}] ${req.url}`);
     next();
 });
+
+// In web mode the Express process only exposes the API (port 3001); the React
+// UI is served by the webpack dev server (port 1212). Redirect the API root so
+// opening http://localhost:3001/ in a browser lands on the UI instead of
+// Express's default "Cannot GET /".
+if (process.env.NODE_ENV !== 'production') {
+    const webUiPort = parseInt(process.env.PORT || '1212', 10);
+    app.get('/', (_req, res) => {
+        res.redirect(`http://127.0.0.1:${webUiPort}/`);
+    });
+}
 
 // Serve static files from the React app (if built) or just API for now
 // In development, we'll run this alongside the webpack dev server.
@@ -84,13 +96,20 @@ app.use('/assets', express.static(path.join(__dirname, '../../assets')));
 // Start server after cleanup
 let server: any;
 cleanupLabs().then(() => {
-    server = app.listen(PORT, '127.0.0.1', () => {
+    server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
     server.setTimeout(300000); // 5 minutes timeout for long docker builds
 
     // Initialize Socket.IO now that server is ready
     setupSocketIO(server);
+
+    // Bring up the Arkime infrastructure (OpenSearch + viewer) at platform
+    // startup so Statistics is always available; per-simulation captures attach
+    // later when a simulation starts. Fire-and-forget (image pulls are slow).
+    startArkimeInfra((_l, m) => console.log(m)).catch((e) =>
+        console.error(`🦈 Arkime infra start error: ${e?.message || e}`),
+    );
 });
 
 import { Server } from 'socket.io';

@@ -35,7 +35,7 @@ if (
       'The DLL files are missing. Sit back while we build them for you with "npm run build-dll"',
     ),
   );
-  execSync('npm run postinstall');
+  execSync('npm run build:dll');
 }
 
 
@@ -211,6 +211,20 @@ const configuration: webpack.Configuration = {
       '/socket.io': {
         target: 'http://localhost:3001',
         ws: true
+      },
+      // Same-origin proxy to the Arkime viewer (served under /arkime/ via its
+      // webBasePath). Serving it on the app's own origin keeps Arkime's
+      // SameSite=Strict auth cookie first-party (otherwise the embedded viewer
+      // fails with "Missing token"). We also strip the framing headers so it can
+      // be embedded in the Statistics tab / Net Flow modal iframes.
+      '/arkime': {
+        target: 'http://localhost:8005',
+        ws: true,
+        onProxyRes: (proxyRes: any) => {
+          delete proxyRes.headers['x-frame-options'];
+          delete proxyRes.headers['content-security-policy'];
+          delete proxyRes.headers['x-content-security-policy'];
+        },
       }
     },
     setupMiddlewares(middlewares) {

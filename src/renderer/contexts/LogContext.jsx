@@ -12,7 +12,7 @@ export function LogProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = api.subscribeToLogs((level, message) => {
-      setLogs((prevLogs) => [...prevLogs, message].slice(-1000));
+      setLogs((prevLogs) => [...prevLogs, { level, message }].slice(-5000));
     });
 
     return () => {

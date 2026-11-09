@@ -27,7 +27,7 @@ function Logs() {
       ) : (
         <div className="rounded-xl bg-content1 h-full p-4 overflow-y-auto">
           <pre className="w-full font-normal bg-transparent !outline-none text-small whitespace-pre-wrap">
-            {logs.join("\n")}
+            {logs.map((log, i) => `${log.level ? `[${log.level.toUpperCase()}] ` : ''}${log.message}`).join("\n")}
           </pre>
           <div ref={logsEndRef} />
         </div>

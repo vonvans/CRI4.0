@@ -7,7 +7,6 @@
 /* eslint-disable prettier/prettier */
 import { useState, useEffect, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
-import { NotificationContext } from '../../contexts/NotificationContext';
 import { TerminalContext } from '../../contexts/TerminalContext';
 import { Badge, Switch, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@nextui-org/react";
 import { MoonIcon } from "./MoonIcon";
@@ -25,7 +24,6 @@ export function AppNavbar({ darkMode, setDarkMode }) {
   const location = useLocation();
   const { pathname } = location;
 
-  const { attackLoaded } = useContext(NotificationContext);
   const { activeTerminals, setActiveTerminals } = useContext(TerminalContext);
 
   return (
@@ -37,18 +35,16 @@ export function AppNavbar({ darkMode, setDarkMode }) {
             Home
           </Link>
         </NavbarItem>
-        <NavbarItem isActive={pathname === '/topology'}>
-          <Badge isInvisible={!attackLoaded} content="" placement='top-right' color="danger" size="sm" className='animate-pulse-fast'>
-            <Link
-              color={pathname === "/topology" ? "primary" : "foreground"} href="/topology">
-              Topology
-            </Link>
-          </Badge>
-        </NavbarItem>
         <NavbarItem isActive={pathname === '/attack'}>
           <Link
             color={pathname === "/attack" ? "primary" : "foreground"} href="/attack">
             Attack
+          </Link>
+        </NavbarItem>
+        <NavbarItem isActive={pathname === '/topology'}>
+          <Link
+            color={pathname === "/topology" ? "primary" : "foreground"} href="/topology">
+            Topology
           </Link>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/report'}>
