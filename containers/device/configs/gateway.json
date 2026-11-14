@@ -1,0 +1,25 @@
+{
+  "network_mapping": {
+    "publishers": [
+      {
+        "topic": "commands/valve/opening",
+        "target_component": "main_valve",
+        "target_port": "target_position"
+      }
+    ],
+    "subscribers": [
+      {
+        "topic": "telemetry/reactor/temperature",
+        "interval_ms": 100,
+        "source_component": "temp_sensor",
+        "source_port": "measured_temperature"
+      },
+      {
+        "topic": "telemetry/environment/temperature",
+        "interval_ms": 1000,
+        "source_component": "$env",
+        "source_port": "ambient_temperature"
+      }
+    ]
+  }
+}

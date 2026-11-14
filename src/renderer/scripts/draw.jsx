@@ -12,6 +12,8 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable prettier/prettier */
+import { isHolderDevice } from '../utils/deviceAutoCreate';
+
 const
 	LENGTH_MAIN = 350;
 	const LENGTH_SERVER = 150;
@@ -123,14 +125,21 @@ function generate_nodes_edges(lab, ifNameAt, ifOspfCost, routingLabel) {
 	for (let m in lab) {
 		let machine = lab[m];
 		if (machine.name === "") continue;
+		// Config holders are not deployed and must not appear in the topology.
+		if (isHolderDevice(machine)) continue;
 		// each machine is a node. beware of duplicates
 		let id = "machine-" + machine.name;
 		if (!containsNodeWithID(id, nodes)) {
-			nodes.push({
+			const nodeData = {
 				id: id,
 				label: (machine.type === "other") ? machine.name + " (" + machine.other.image + ")" : machine.name,
 				group: machine.type
-			});
+			};
+			if (machine.type === "other" && machine.other?.logo) {
+				nodeData.image = machine.other.logo;
+				nodeData.shape = "image";
+			}
+			nodes.push(nodeData);
 		}
 
 		if (machine.type === "router") {
@@ -191,7 +200,7 @@ function generate_nodes_edges(lab, ifNameAt, ifOspfCost, routingLabel) {
 			let domain_name = machineInterface.eth.domain;
 			if (!domain_name || domain_name === "") continue;
 
-			let if_name = (ifNameAt.checked ? "@" : "eth") + machineInterface.eth.number;
+			let if_name = (ifNameAt.checked ? "@" : "eth") + (machineInterface.eth.number + 1);
 			let domain_id = "domain-" + domain_name;
 			let app_to = "iplabel-" + domain_name + "-domain_ip";
 			let domain_ip; let if_ip;

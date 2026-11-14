@@ -4,14 +4,17 @@ import ProjectService from '../services/ProjectService';
 import { DownloadSymbol } from "./Symbols/DownloadSymbol";
 import { UploadSymbol } from "./Symbols/UploadSymbol";
 import { toast } from 'react-hot-toast';
+import { api } from '../api';
 
 export function ProjectManager({ machines, labInfo, setMachines, setLabInfo }) {
     const { isOpen: isLoadOpen, onOpen: onLoadOpen, onOpenChange: onLoadOpenChange } = useDisclosure();
     const { isOpen: isSaveOpen, onOpen: onSaveOpen, onOpenChange: onSaveOpenChange } = useDisclosure();
+    const { isOpen: isConfirmStopOpen, onOpen: onConfirmStopOpen, onOpenChange: onConfirmStopOpenChange } = useDisclosure();
 
     const [saveFilename, setSaveFilename] = useState("");
     const [savesList, setSavesList] = useState([]);
     const [currentProjectName, setCurrentProjectName] = useState("");
+    const [projectToLoad, setProjectToLoad] = useState(null);
 
     const fetchSaves = async () => {
         const list = await ProjectService.listSaves();
@@ -43,6 +46,34 @@ export function ProjectManager({ machines, labInfo, setMachines, setLabInfo }) {
             onClose();
         } else {
             toast.error("Failed to save project: " + result.error);
+        }
+    };
+
+    const attemptLoad = async (filename, onClose) => {
+        const isSimulationRunning = JSON.parse(sessionStorage.getItem('simulationRun') || 'false');
+        if (isSimulationRunning) {
+            setProjectToLoad({ filename, onClose });
+            onConfirmStopOpen();
+        } else {
+            handleLoad(filename, onClose);
+        }
+    };
+
+    const confirmLoad = async () => {
+        if (!projectToLoad) return;
+        
+        const toastId = toast.loading("Stopping simulation...");
+        try {
+            await api.stopSimulation();
+            sessionStorage.setItem('simulationRun', 'false');
+            sessionStorage.setItem('stopSimulation', 'false');
+            toast.dismiss(toastId);
+            
+            handleLoad(projectToLoad.filename, projectToLoad.onClose);
+            onConfirmStopOpenChange(false);
+        } catch (e) {
+            console.error("Stop simulation error:", e);
+            toast.error("Failed to stop simulation: " + e.message, { id: toastId });
         }
     };
 
@@ -163,7 +194,7 @@ export function ProjectManager({ machines, labInfo, setMachines, setLabInfo }) {
                                     <div className="flex flex-col gap-2">
                                         {savesList.map(file => (
                                             <div key={file} className="flex justify-between items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                                <span onClick={() => handleLoad(file, onClose)} className="flex-1 font-mono">
+                                                <span onClick={() => attemptLoad(file, onClose)} className="flex-1 font-mono">
                                                     {file}
                                                 </span>
                                                 <Button size="sm" color="danger" variant="light" onPress={() => handleDelete(file)}>
@@ -205,6 +236,28 @@ export function ProjectManager({ machines, labInfo, setMachines, setLabInfo }) {
                                 </Button>
                                 <Button color="primary" onPress={() => handleSave(onClose)}>
                                     Save
+                                </Button>
+                            </ModalFooter>
+                        </>
+                    )}
+                </ModalContent>
+            </Modal>
+
+            {/* Confirm Stop Simulation Modal */}
+            <Modal isOpen={isConfirmStopOpen} onOpenChange={onConfirmStopOpenChange}>
+                <ModalContent>
+                    {(onClose) => (
+                        <>
+                            <ModalHeader>Stop Simulation</ModalHeader>
+                            <ModalBody>
+                                <p>A simulation is currently running. Loading a new project will stop it. Do you want to continue?</p>
+                            </ModalBody>
+                            <ModalFooter>
+                                <Button color="default" variant="light" onPress={onClose}>
+                                    Cancel
+                                </Button>
+                                <Button color="danger" onPress={confirmLoad}>
+                                    Stop and Load
                                 </Button>
                             </ModalFooter>
                         </>

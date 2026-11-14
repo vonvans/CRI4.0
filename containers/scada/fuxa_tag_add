@@ -1,0 +1,48 @@
+#! /bin/bash
+
+if [[ $# -ne 7 ]]; then
+    echo "Usage: ./fuxa_tag_add <fuxa_endpoint> <device_name> <tag_name> <tag_address> <tag_type> <registry> <description>"
+    echo "for example: fuxa_tag_add localhost:1881 engine pressione_olio 1234 Bool input_register register"
+    exit 1
+fi
+
+FUXA_ENDPOINT="$1" # "localhost:1881"
+DEVICE_NAME="$2"   #"temp"
+TAG_NAME="$3"
+TAG_ADDRESS="$4"
+TAG_TYPE="$5"
+REGISTRY="$6" # "input_register"
+DESCRIPTION="$7"
+TAG_ID="t_$(uuidgen | cut -d '-' -f1,2)"
+
+case "$REGISTRY" in
+"coil_status") MEM_ADDRESS="000000" ;;
+"digital_input") MEM_ADDRESS="100000" ;;
+"input_register") MEM_ADDRESS="300000" ;;
+"holding_register") MEM_ADDRESS="400000" ;;
+*) MEM_ADDRESS="000000" ;;
+esac
+
+DEVICE_OBJ=$(curl -s "http://${FUXA_ENDPOINT}/api/project" |
+    jq -c --arg NAME "$DEVICE_NAME" '.devices | to_entries[] | select(.value.name == $NAME) | .value')
+
+PAYLOAD=$(echo "$DEVICE_OBJ" | jq -c \
+    --arg tid "$TAG_ID" \
+    --arg tname "$TAG_NAME" \
+    --arg ttype "$TAG_TYPE" \
+    --argjson taddr "$TAG_ADDRESS" \
+    --arg mem "$MEM_ADDRESS" \
+    --arg desc "$DESCRIPTION" \
+    '.tags[$tid] = {
+    id: $tid,
+    name: $tname,
+    type: $ttype,
+    address: $taddr,
+    memaddress: $mem,
+    daq: {enabled: false, interval: 60},
+    description: $desc
+  } | {cmd: "set-device", data: .}')
+
+curl -s -X POST "http://${FUXA_ENDPOINT}/api/projectData" \
+    -H "Content-Type: application/json" \
+    -d "$PAYLOAD"

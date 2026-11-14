@@ -1,7 +1,30 @@
 import React from 'react';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from "@nextui-org/react";
 
-export default function UIModal({ isOpen, onClose, url, title }) {
+// Hide Arkime's top navigation bar inside an embedded viewer. The iframe is
+// same-origin (served under /arkime via the app's reverse proxy), so we can
+// reach its document and inject a <style>. Runs on every load because Arkime is
+// a Vue SPA that re-renders the frame on navigation.
+function injectArkimeCss(e) {
+    try {
+        const doc = e.target.contentDocument;
+        if (!doc) return;
+        let style = doc.getElementById("cri40-arkime-style");
+        if (!style) {
+            style = doc.createElement("style");
+            style.id = "cri40-arkime-style";
+            doc.head.appendChild(style);
+        }
+        style.textContent = `
+            .navbar { display: none !important; }
+            .navbarOffset { margin-top: 0 !important; padding-top: 0 !important; }
+        `;
+    } catch (_) {
+        /* cross-origin: nothing we can do, leave the frame untouched */
+    }
+}
+
+export default function UIModal({ isOpen, onClose, url, title, zoom = 1, hideArkimeNav = false }) {
     return (
         <Modal
             isOpen={isOpen}
@@ -22,7 +45,9 @@ export default function UIModal({ isOpen, onClose, url, title }) {
                                         src={url}
                                         title="UI View"
                                         className="w-full h-full border-none"
+                                        style={{ zoom: zoom }}
                                         sandbox="allow-same-origin allow-scripts allow-forms"
+                                        onLoad={hideArkimeNav ? injectArkimeCss : undefined}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-500">

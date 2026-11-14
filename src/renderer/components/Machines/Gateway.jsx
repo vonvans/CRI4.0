@@ -139,8 +139,8 @@ export function Gateway({machine, machines, setMachines}) {
                                 })}
                             >
                                 {machine.interfaces.if.map(i =>
-                                    <SelectItem textValue={`eth${i.eth.number}`} key={i.eth.number}>
-                                        eth{i.eth.number}
+                                    <SelectItem textValue={`eth${i.eth.number + 1}`} key={i.eth.number}>
+                                        eth{i.eth.number + 1}
                                     </SelectItem>
                                 )}
                             </Select>

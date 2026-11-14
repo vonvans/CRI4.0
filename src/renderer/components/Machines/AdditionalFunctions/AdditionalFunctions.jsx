@@ -18,19 +18,50 @@ import { TlsTerminationProxyFunctions } from "./TlsTerminationProxyFunctions";
 import { NGFWFunctions } from "./NGFWFunctions";
 import { IndustrialFunctions } from "./IndustrialFunctions";
 import { ScadaFunctions } from "./ScadaFunctions";
+import { CustomMachineFunctions } from "./CustomMachineFunctions";
+import { CustomAttackFunctions } from "./CustomAttackFunctions";
+import { NetproxyFunctions } from "./NetproxyFunctions";
+import { DeviceFunctions } from "./DeviceFunctions";
+import { MqttPubFunctions } from "./MqttPubFunctions";
+import { MosquittoFunctions } from "./MosquittoFunctions";
 
 export function AdditionalFunctions({ machine, machines, setMachines }) {
     return (
         <div className="h-full">
             {(() => {
                 switch (machine.type) {
+                    case 'netproxy':
+                        return <NetproxyFunctions
+                            machine={machine}
+                            machines={machines}
+                            setMachines={setMachines}
+                        />
+                    case 'device':
+                        return <DeviceFunctions
+                            machine={machine}
+                            machines={machines}
+                            setMachines={setMachines}
+                        />
+                    case 'mqtt_pub':
+                        return <MqttPubFunctions
+                            machine={machine}
+                            machines={machines}
+                            setMachines={setMachines}
+                        />
+                    case 'mosquitto':
+                        return <MosquittoFunctions
+                            machine={machine}
+                            machines={machines}
+                            setMachines={setMachines}
+                        />
                     case 'terminal':
-                    case 'attacker':
                         return <TerminalFunctions
                             machine={machine}
                             machines={machines}
                             setMachines={setMachines}
                         />
+                    case 'attacker':
+                        return null
                     case 'ns':
                         return <NameserverFunctions
                             machine={machine}
@@ -56,11 +87,17 @@ export function AdditionalFunctions({ machine, machines, setMachines }) {
                             setMachines={setMachines}
                         />
                     case "other":
-                        return <OtherFunctions
-                            machine={machine}
-                            machines={machines}
-                            setMachines={setMachines}
-                        />
+                        return machine.customTemplateId
+                            ? <CustomMachineFunctions
+                                machine={machine}
+                                machines={machines}
+                                setMachines={setMachines}
+                            />
+                            : <OtherFunctions
+                                machine={machine}
+                                machines={machines}
+                                setMachines={setMachines}
+                            />
                     case 'tls_termination_proxy':
                         return <TlsTerminationProxyFunctions
                             machine={machine}

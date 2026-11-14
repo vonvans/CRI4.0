@@ -54,11 +54,37 @@ function AttackSelector({ type, attacker, attacks, selectedImage, setSelectedIma
             <CardBody>
                 <div className="grid gap-2">
                     <RadioGroup label="Select attack type" defaultValue={selectedImage}>
-                        {attacks.map((attack, index) => (
-                            attack.category === type && (
-                                <div key={index} className="grid gap-2 grid-cols-2 items-center">
-                                    <div>
-                                        <Radio isDisabled={!attack.isImage || attacker.attackLoaded} value={`icr/${attack.category}-${attack.name}`} onClick={() => setSelectedImage(attack.image)}>{attack.displayName}</Radio>
+                        {attacks.map((attack, index) => {
+                            if (attack.category !== type) return null;
+                            const attackImageValue = attack.isImage ? attack.image : `icr/${attack.category.toLowerCase()}-${attack.name}`;
+                            const isLoaded = attacker?.attackLoaded && attacker?.attackImage === attackImageValue;
+                            return (
+                                <div
+                                    key={index}
+                                    className={`grid gap-2 grid-cols-2 items-center rounded-lg px-2 py-1 transition-all ${
+                                        isLoaded
+                                            ? "border border-success/60 bg-success/10"
+                                            : "border border-transparent"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Radio isDisabled={!attack.isImage || attacker.attackLoaded} value={attackImageValue} onClick={() => setSelectedImage(attack.image)}>{attack.displayName}</Radio>
+                                        {isLoaded && (
+                                            <span style={{
+                                                fontSize: "10px",
+                                                fontWeight: 600,
+                                                letterSpacing: "0.05em",
+                                                textTransform: "uppercase",
+                                                padding: "1px 6px",
+                                                borderRadius: "9999px",
+                                                background: "rgba(34,197,94,0.15)",
+                                                color: "rgb(34,197,94)",
+                                                border: "1px solid rgba(34,197,94,0.4)",
+                                                whiteSpace: "nowrap",
+                                            }}>
+                                                ✓ Loaded
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="grid gap-2 grid-cols-5">
                                         <Input className={`pl-2 col-span-${!attack.isImage ? "4" : "5"}`} type="text" value={isLoading ? "Loading images..." : attack.image} placeholder="Image not found" disabled />
@@ -67,8 +93,8 @@ function AttackSelector({ type, attacker, attacks, selectedImage, setSelectedIma
                                         )}
                                     </div>
                                 </div>
-                            )
-                        ))}
+                            );
+                        })}
                     </RadioGroup>
                 </div>
             </CardBody>

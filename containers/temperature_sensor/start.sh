@@ -21,4 +21,6 @@ if [ "${SINE_WAVE:-false}" = "true" ]; then
 fi
 
 # Run the temperature sensor with the constructed arguments
+source .venv/bin/activate
+uv pip install -r requirements.txt
 exec uv run /tsens.py $ARGS

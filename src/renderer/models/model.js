@@ -11,6 +11,7 @@ export const backboneModel = {
   name: "",
   row: 1,
   type: "terminal",
+  customTemplateId: null,
   attackLoaded: false,
   attackImage: "",
   attackCommand: "",
@@ -56,6 +57,7 @@ export const backboneModel = {
     image: "",
     files: [],
     fileCounter: 0,
+    envDefs: [],
   },
 
   scripts: {
@@ -432,6 +434,20 @@ export const attacksModel = [
     }
   },
   {
+    name: "mqtt-eavesdropping",
+    displayName: "MQTT Eavesdropping",
+    category: "sniffing",
+    attackLoaded: false,
+    image: "",
+    isImage: false,
+    script: "/usr/local/bin/mqtt-eavesdropping.sh",
+    entrypoint: "bash",
+    parameters: {
+      argsBeforeTargets: [],
+      argsAfterTargets: []
+    }
+  },
+  {
     name: "modbus-read",
     displayName: "Modbus Read",
     category: "sniffing",
@@ -470,10 +486,10 @@ export const attacksModel = [
   {
     name: "crack-plc",
     displayName: "Crack PLC",
-    category: "injection",
+    category: "access-gain",
     attackLoaded: false,
-    image: "",
-    isImage: false,
+    image: "icr/access-gain-crack-plc:latest",
+    isImage: true,
   },
   {
     name: "modbustcp-recon",

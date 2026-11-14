@@ -2,11 +2,12 @@
 /* eslint-disable prettier/prettier */
 import { v4 as uuidv4 } from 'uuid';
 import { Textarea } from "@nextui-org/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { LabInfo } from "../components/LabInfo";
 import { Machines } from "../components/Machines/Machines.jsx"
 import { generateScript } from "../scripts/make";
 import { labInfoModel, backboneModel } from '../models/model.js';
+import { syncDeviceMachines } from '../utils/deviceAutoCreate';
 
 import { Mock } from "../components/Mock/Mock";
 import { ProjectManager } from '../components/ProjectManager.jsx';
@@ -47,6 +48,14 @@ function Home() {
     });
 
     const componentRefs = useRef([]);
+
+    // Reconcile the auto-created device machines (physical_simulator +
+    // one machine per peripheral config) whenever the project changes: on
+    // first load, on project load and after config upload/removal. Returns
+    // the same reference when nothing changed, so this never loops.
+    useEffect(() => {
+        setMachines((prev) => syncDeviceMachines(prev));
+    }, [machines]);
 
     return (
         <div className="min-h-[calc(100vh-4rem)] grid grid-cols-6">

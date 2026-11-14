@@ -1,0 +1,41 @@
+# Variables
+if [[ $# -ne 4 ]]; then
+    echo "Usage: ./fuxa_device_add <fuxa_endpoint> <device_name> <device_endpoint> <polling>"
+    echo "for example: fuxa_device_add localhost:1881 engine 10.0.0.2:502 10000"
+    exit 1
+fi
+
+FUXA_ENDPOINT="$1"   # "localhost:1881"
+DEVICE_NAME="$2"     # "engine"
+DEVICE_ENDPOINT="$3" # "10.0.0.2:502"
+DEVICE_ID="d_$(uuidgen)"
+POLLING="$4" # "1000"
+
+PAYLOAD=$(
+    cat <<EOF
+{
+  "cmd": "set-device",
+  "data": {
+    "id": "$DEVICE_ID",
+    "name": "$DEVICE_NAME",
+    "enabled": true,
+    "type": "ModbusTCP",
+    "property": {
+      "address": "$DEVICE_ENDPOINT",
+      "port": 502,
+      "slaveid": 1,
+      "connectionOption": "TcpPort",
+      "delay": 1000
+    },
+    "tags": {},
+    "polling": $POLLING
+  }
+}
+EOF
+)
+
+curl -sS -m 2 \
+    -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -X POST "http://${FUXA_ENDPOINT}/api/projectData" \
+    -d "$PAYLOAD" >/dev/null 2>&1 &

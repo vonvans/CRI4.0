@@ -1,3 +1,5 @@
+#!/bin/bash
+
 while true; do
     # TODO GET STATS SOURCE FROM /proc
     # MOVE AWAY FROM BASH

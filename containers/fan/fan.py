@@ -9,6 +9,7 @@ import logging
 import random
 import time
 import threading
+import math
 
 import os
 
@@ -18,7 +19,8 @@ parser.add_argument("-a", "--address", required=False, default="0.0.0.0", help="
 parser.add_argument("-p", "--port", required=False, default=502, type=int, help="ModbusTCP port")
 parser.add_argument("-c", "--capacity", required=False, default=float(os.environ.get("CAPACITY", 2.0)), type=float, help="Fan capacity")
 parser.add_argument("-e", "--endpoint", required=False, default=os.environ.get("ENDPOINT", "http://localhost:8000/"), help="Endpoint API REST")
-parser.add_argument("-ft", "--fetch-time", required=False, default=1.0, type=float, help="Fetch time in seconds")
+parser.add_argument("-ft", "--fetch-time", required=False, default=0.1, type=float, help="Fetch time in seconds")
+parser.add_argument("-acc", "--acceleration", required=False, default=float(os.environ.get("ACCELERATION", 100.0)), type=float, help="RPM acceleration (RPM/s)")
 args = parser.parse_args()
 
 # Enable logging
@@ -40,16 +42,27 @@ store = ModbusDeviceContext(
 context = ModbusServerContext(devices=store, single=True)
 
 def update_values(context):
+    current_rpm = 0.0
     while True:
-        if context[0].getValues(1, 0, count=1)[0] == 0:
-            log.info("Fan is stopped. Waiting...")
-            time.sleep(1)
-            continue
-        power = context[0].getValues(3, 0, count=1)[0]
-        if power == 0:
-            power = 1
-        log.info(f"Read power: {power}")
+        # Read Target RPM (HR 0)
+        hr0 = context[0].getValues(3, 0, count=1)
+        if isinstance(hr0, list):
+            target_rpm = hr0[0]
+        else:
+            log.error(f"Error reading Target RPM from HR 0: {hr0}")
+            target_rpm = 0.0 # Default if error
+        log.info(f"Target RPM (HR 0): {target_rpm}")
 
+        # Power is no longer read from registers, defaulting to 1 for cooling calculation
+        power = 1.0
+
+        delta = target_rpm - current_rpm
+        delta_to_apply = delta * 0.025
+        current_rpm += delta_to_apply
+
+        # Update Current RPM (IR 1)
+        context[0].setValues(4, 1, [int(current_rpm)])
+        log.info(f"Current RPM: {int(current_rpm)}")
 
         try:
             response = requests.get(args.endpoint + "engine")
@@ -58,9 +71,19 @@ def update_values(context):
                 temperature = data.get("temperature")
                 
                 if temperature is not None:
+                    # Update Temperature (IR 0)
                     context[0].setValues(4, 0, [int(temperature)])
                     log.info(f"Read temperature: {temperature}")
-                    new_temperature = temperature - power * args.capacity
+                    
+                    # Calculate cooling based on power and current RPM
+                    # If RPM is 0, cooling is 0. If RPM is 1000, cooling is full power.
+                    # We can use (current_rpm / 1000.0) as a factor if we want, 
+                    # but let's stick to the simplest interpretation first.
+                    # I'll use current_rpm as the primary cooling factor if it's used.
+                    # For now, I'll keep the existing 'power' logic but scaled by RPM/1000.
+                    rpm_factor = current_rpm / 1000.0
+                    new_temperature = temperature - (power * rpm_factor * args.capacity)
+                    
                     post_url = args.endpoint + "engine/temperature"
                     payload = {"temperature": new_temperature}
                     post_response = requests.post(post_url, json=payload)

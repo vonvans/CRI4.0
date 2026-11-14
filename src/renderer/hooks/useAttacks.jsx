@@ -14,18 +14,12 @@ export default function useAttacks(refresh) {
     useEffect(() => {
         setIsLoading(true);
         api.getDockerImages().then((images_list) => {
-            const parsedImages = images_list.map(image => {
-                const [_, rest] = image.split('icr/');
-                const [name] = rest.split(':');
-                const [category, ...nameParts] = name.split('-');
-                const imageName = nameParts.join('-');
-                return { category, name: imageName, image: image };
-            });
-
             const updatedAttacks = attacksModel.map(attack => {
-                const matchingImage = parsedImages.find(image => image.name === attack.name);
+                const searchString = `icr/${attack.category.toLowerCase()}-${attack.name}`;
+                // Trova l'immagine che inizia con il pattern corretto (gestisce tag come :latest)
+                const matchingImage = images_list.find(img => img.startsWith(searchString));
                 if (matchingImage) {
-                    return { ...attack, image: matchingImage.image, isImage: true };
+                    return { ...attack, image: matchingImage, isImage: true };
                 }
                 return { ...attack, image: '', isImage: false };
             });

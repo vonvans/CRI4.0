@@ -29,6 +29,20 @@ export function Machines({ machines, setMachines, componentRefs }) {
       td: ["align-top h-auto"],
     }), [])
 
+  const [customTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customTemplates");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [customAttackTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customAttacks");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   useEffect(() => {
     localStorage.setItem("machines", JSON.stringify(machines));
   }, [machines]);
@@ -109,14 +123,12 @@ export function Machines({ machines, setMachines, componentRefs }) {
                 size="sm"
                 color="success"
                 className="text-white"
-                endContent={
-                  <PlusSymbol fill="white" size={22} />
-                }> Add Machine </Button>
-              <Button isDisabled={machines.length > 0 ? false : true} aria-label="Clear all machine"
-                onClick={() => setMachines([{
-                  id: uuidv4(),
-                  ...backboneModel
-                }])}
+                endContent={<PlusSymbol fill="white" size={22} />}
+              >
+                Add Machine
+              </Button>
+              <Button isDisabled={machines.length > 0 ? false : true} aria-label="Clear all machines"
+                onClick={() => setMachines([{ id: uuidv4(), ...backboneModel }])}
                 size="sm" color="danger" endContent={<XSymbol size={22} />}>
                 Clear All Machines
               </Button>
@@ -143,7 +155,7 @@ export function Machines({ machines, setMachines, componentRefs }) {
                 </div>
               </TableCell>
               <TableCell>
-                <MachineInfo id={index} machine={machine} machines={machines} setMachines={setMachines} />
+                <MachineInfo id={index} machine={machine} machines={machines} setMachines={setMachines} customTemplates={customTemplates} customAttackTemplates={customAttackTemplates} />
               </TableCell>
               <TableCell>
                 <NetworkInterface machine={machine} machines={machines} setMachines={setMachines} />

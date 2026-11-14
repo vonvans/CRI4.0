@@ -30,6 +30,11 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
   const [interfaceName, setInterfaceName] = useState("eth1");
   const [time, setTime] = useState("10");
 
+  // MQTT Eavesdropping Params
+  const [brokerAddr, setBrokerAddr] = useState("10.0.0.1");
+  const [brokerPort, setBrokerPort] = useState("1883");
+  const [subTopic, setSubTopic] = useState("#");
+
   useEffect(() => {
     if (attacker) {
       setSelectedImage(attacker.attackImage);
@@ -38,6 +43,10 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
   }, [attacker]);
 
   const isPacketSniffing = selectedImage && selectedImage.includes("packet-sniffing");
+  const isMqttEavesdrop = selectedImage && selectedImage.includes("mqtt-eavesdropping");
+
+  // Single-quote a value for safe embedding in a `sh -c '...'` command.
+  const shq = (v) => `'${String(v).replace(/'/g, "'\\''")}'`;
 
   const toggleAttack = (val) => {
     setMachines(machines.map((m) => {
@@ -55,6 +64,15 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
             }
             // Order: time, interface, ip1, ip2
             attackArgs = ['bash', '/usr/local/bin/sniffing.sh', time, interfaceName, ...cleanIps];
+          } else if (val && val.includes("mqtt-eavesdropping")) {
+            // Long-running eavesdropper: launch in the background (nohup + pidfile)
+            // so Start Attack returns immediately while mosquitto_sub + Fluent Bit
+            // keep pushing MQTT messages to Loki. Stopped via /attack.pid + pkill.
+            const launch =
+              `nohup bash /usr/local/bin/mqtt-eavesdropping.sh ` +
+              `${shq(brokerAddr)} ${shq(brokerPort)} ${shq(subTopic)} ` +
+              `> /attack.log 2>&1 & echo $! > /attack.pid`;
+            attackArgs = ['sh', '-c', launch];
           } else {
             attackArgs = ['sh', '/usr/local/bin/script.sh', ...cleanIps];
           }
@@ -64,7 +82,6 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
           setAttackLoaded(true);
           return {
             ...m,
-            name: val,
             targets: targets,
             attackLoaded: true,
             attackImage: val,
@@ -93,7 +110,7 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
       <div className="grid items-start">
         <Button isLoading={isLoading} className="bg-secondary" startContent={isLoading ? null : <FaArrowRotateLeft />} onClick={handleRefresh}>{isLoading ? "Refreshing images..." : "Refresh images"}</Button>
       </div>
-      <div className="flex-grow">
+      <div className={`flex-grow transition-opacity duration-300 ${attacker?.attackLoaded ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="grid gap-2">
           <MachineSelector machines={machines} setTargets={setTargets} attacker={attacker} />
           <AttackSelector type="sniffing" attacker={attacker} attacks={attacks} selectedImage={selectedImage} setSelectedImage={setSelectedImage} isLoading={isLoading} handleRefresh={handleRefresh} />
@@ -122,6 +139,44 @@ function Sniffing({ attacker, attacks, isLoading, machines, setMachines, handleR
                 </div>
                 <div className="text-xs text-warning">
                   Please select exactly 2 target machines for this attack.
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Params UI for MQTT Eavesdropping */}
+          {isMqttEavesdrop && (
+            <Card>
+              <CardBody className="gap-2">
+                <p className="text-sm font-bold">MQTT Eavesdropping Parameters</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    label="Broker address"
+                    size="sm"
+                    value={brokerAddr}
+                    onValueChange={setBrokerAddr}
+                    placeholder="10.0.0.1"
+                  />
+                  <Input
+                    label="Broker port"
+                    size="sm"
+                    type="number"
+                    value={brokerPort}
+                    onValueChange={setBrokerPort}
+                    placeholder="1883"
+                  />
+                </div>
+                <Input
+                  label="Topic"
+                  size="sm"
+                  value={subTopic}
+                  onValueChange={setSubTopic}
+                  placeholder="#"
+                />
+                <div className="text-xs text-default-400">
+                  Subscribes to the broker and streams every matching message to
+                  Loki (labels <span className="font-mono">job=mqtt, host=&lt;attacker&gt;</span>).
+                  No target selection needed.
                 </div>
               </CardBody>
             </Card>

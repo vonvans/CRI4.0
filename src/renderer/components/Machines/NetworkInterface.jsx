@@ -165,7 +165,7 @@ export function NetworkInterface({ machine, machines, setMachines }) {
                                                 <Input
                                                     type="text"
                                                     variant="flat"
-                                                    label={`eth${index}`}
+                                                    label={`eth${index + 1}`}
                                                     placeholder="A"
                                                     value={i.eth.domain || ""}
                                                     onChange={(e) => handleChange(e, index, {
@@ -223,7 +223,7 @@ export function NetworkInterface({ machine, machines, setMachines }) {
                                             <Input
                                                 type="text"
                                                 variant="flat"
-                                                label={`eth${index}`}
+                                                label={`eth${index + 1}`}
                                                 placeholder="A"
                                                 value={i.eth.domain || ""}
                                                 onChange={(e) => handleChange(e, index, {
